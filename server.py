@@ -275,7 +275,7 @@ body {
      the dotted background pattern never touches letter edges. Inherits
      from body into everything below; elements with their own colored
      background chips explicitly zero this out further down. */
-  -webkit-text-stroke: 6px #f2ede4;
+  -webkit-text-stroke: 12px #f2ede4;
   paint-order: stroke fill;
   background-image:
     radial-gradient(circle at 12% 22%, rgba(0,0,0,0.5) 0.5px, transparent 1.5px),
