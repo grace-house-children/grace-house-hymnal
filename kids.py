@@ -22,7 +22,11 @@ gives a fresh sheet every time, with nothing to rebuild.
 
 Where things come from:
     Look it up   a random reference from verses.txt (the same list as the
-                 front page's verse chip). Tap the box for another.
+                 front page's verse chip), written in a secret code of
+                 little symbols, with a key underneath. Kids crack the
+                 code, look the verse up, and copy it onto the lines.
+                 Each shuffle picks a new verse and new symbols. The
+                 answer shows above the sheet, on screen only.
     Next up      the first event in events.txt that's today or later.
                  Worked out in the browser, so it stays current by itself.
 
@@ -87,7 +91,9 @@ main { max-width: calc(8.5in + 50px); }
 .kids-hint {
   font-family: 'Special Elite', 'Courier New', monospace;
   font-size: 13px;
+  line-height: 1.5;
 }
+.kids-hint b { font-weight: normal; color: #f01a8b; }
 
 /* ── The sheet ───────────────────────────────────────────── */
 .sheet-wrap { position: relative; overflow: hidden; }   /* KIDS_JS sets the height */
@@ -211,16 +217,97 @@ main { max-width: calc(8.5in + 50px); }
 }
 .act-body { position: relative; flex: 1; min-height: 0; }
 
-/* Look it up */
-.lookup-ref {
-  margin: 0;
+/* Look it up: label and directions side by side, then the coded
+   reference with a blank under each symbol, then the key. */
+.act-verse {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  column-gap: 0.12in;
+  row-gap: 0.09in;
+}
+.act-verse .act-label { margin: 0; }
+.act-verse .act-body { grid-column: 1 / -1; flex: none; }
+.act-note { margin: 0; font-size: 8pt; line-height: 1.3; }
+
+/* Code symbols: drawn in the text color, a few of them filled in */
+.cs {
+  display: block;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  overflow: visible;
+}
+.cs .f { fill: currentColor; }
+
+/* The coded reference. Words never split; a long one wraps whole. */
+.code-msg {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  column-gap: 0.12in;
+  row-gap: 0.08in;
+}
+.cw { display: flex; align-items: flex-end; }
+.cc {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 0.22in;
+}
+.cc .cs { width: 0.17in; height: 0.17in; }
+.cc i {                       /* the blank to write the letter on */
+  display: block;
+  width: 0.17in;
+  height: 0.21in;
+  border-bottom: 1.5px solid #0a0a0a;
+}
+.cp {                         /* a colon or dash, printed as is */
+  width: 0.12in;
+  text-align: center;
   font-family: 'Big Shoulders Stencil Text', 'Impact', sans-serif;
   font-weight: 800;
-  font-size: 20pt;
+  font-size: 15pt;
   line-height: 1;
+}
+
+/* The key: each symbol over the letter or number it stands for */
+.code-key {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.03in;
+  margin-top: 0.08in;
+  padding-top: 0.07in;
+  border-top: 1.5px dashed #b5b0a6;
+}
+.code-key-label {
+  margin-right: 0.05in;
+  font-family: 'Big Shoulders Stencil Text', 'Impact', sans-serif;
+  font-weight: 800;
+  font-size: 9.5pt;
+  letter-spacing: 1.5px;
   text-transform: uppercase;
 }
-.lookup-note { margin: 4px 0 0; font-size: 9pt; color: #6b665d; }
+.kp {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 0.22in;
+  padding: 3px 0 2px;
+  border: 1px solid #0a0a0a;
+}
+.kp .cs { width: 0.14in; height: 0.14in; }
+.kp b {
+  margin-top: 2px;
+  font-family: 'Big Shoulders Stencil Text', 'Impact', sans-serif;
+  font-weight: 800;
+  font-size: 10.5pt;
+  line-height: 1;
+}
+.kp-gap { width: 0.06in; }    /* between the letters and the numbers */
 
 /* Next up */
 .sh-foot {
@@ -380,6 +467,85 @@ KIDS_JS = r"""
     };
   }
 
+  /* ── Look it up: the secret code ────────────────────────
+     Every letter and number in the reference gets its own symbol,
+     picked fresh on each shuffle. The key lists those plus a few
+     decoy letters, so matching by count won't give the answer away. */
+  var SHAPES = [
+    '<circle cx="10" cy="10" r="7"/>',                                        // ring
+    '<circle class="f" cx="10" cy="10" r="7"/>',                              // dot
+    '<rect x="3.5" y="3.5" width="13" height="13"/>',                         // square
+    '<rect class="f" x="3.5" y="3.5" width="13" height="13"/>',               // block
+    '<path d="M10 3L17.5 16.5H2.5Z"/>',                                       // triangle
+    '<path class="f" d="M10 3L17.5 16.5H2.5Z"/>',
+    '<path d="M10 2.5L17.5 10L10 17.5L2.5 10Z"/>',                            // diamond
+    '<path class="f" d="M10 2.5L17.5 10L10 17.5L2.5 10Z"/>',
+    '<path d="M10 16.5C4.5 12.5 2.5 9.8 2.5 7.2C2.5 4.8 4.3 3.3 6.3 3.3C7.9 3.3 9.2 4.2 10 5.6C10.8 4.2 12.1 3.3 13.7 3.3C15.7 3.3 17.5 4.8 17.5 7.2C17.5 9.8 15.5 12.5 10 16.5Z"/>',
+    '<path class="f" d="M10 16.5C4.5 12.5 2.5 9.8 2.5 7.2C2.5 4.8 4.3 3.3 6.3 3.3C7.9 3.3 9.2 4.2 10 5.6C10.8 4.2 12.1 3.3 13.7 3.3C15.7 3.3 17.5 4.8 17.5 7.2C17.5 9.8 15.5 12.5 10 16.5Z"/>',
+    '<path d="M10 2.4L12.1 8L18 8.2L13.3 11.9L14.9 17.6L10 14.3L5.1 17.6L6.7 11.9L2 8.2L7.9 8Z"/>',
+    '<path class="f" d="M10 2.4L12.1 8L18 8.2L13.3 11.9L14.9 17.6L10 14.3L5.1 17.6L6.7 11.9L2 8.2L7.9 8Z"/>',
+    '<path d="M10 3V17M3 10H17"/>',                                           // plus
+    '<path d="M4.5 4.5L15.5 15.5M15.5 4.5L4.5 15.5"/>',                       // x
+    '<path class="f" d="M13 3.4A7.25 7.25 0 1 0 13 16.6A7 7 0 0 1 13 3.4Z"/>', // moon
+    '<circle cx="10" cy="10" r="3.6"/><path d="M10 1.5V4.2M10 15.8V18.5M1.5 10H4.2M15.8 10H18.5M4 4L5.9 5.9M14.1 14.1L16 16M16 4L14.1 5.9M5.9 14.1L4 16"/>', // sun
+    '<path d="M1.8 13.5C5 6 12.5 5 17.5 10C12.5 15 5 14 1.8 6.5"/>',          // fish
+    '<path d="M10 17.5V3M4.5 8.5L10 3L15.5 8.5"/>',                           // arrow
+    '<path class="f" d="M11.5 1.8L4.5 11H9.5L8 18.2L15.5 8.5H10.5Z"/>',       // lightning
+    '<path d="M10 2.5C10 2.5 4.5 9 4.5 12.3A5.5 5.5 0 0 0 15.5 12.3C15.5 9 10 2.5 10 2.5Z"/>', // drop
+    '<path d="M3 15.5V6L7 10L10 4L13 10L17 6V15.5Z"/>',                       // crown
+    '<path d="M1.5 10.5Q4 5 6.5 10.5T11.5 10.5T16.5 10.5"/>'                  // wave
+  ];
+  var LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
+  function shuffled(list, rng) {
+    var a = list.slice();
+    for (var i = a.length - 1; i > 0; i--) {
+      var j = Math.floor(rng() * (i + 1));
+      var t = a[i]; a[i] = a[j]; a[j] = t;
+    }
+    return a;
+  }
+  function symbol(shape) {
+    return '<svg class="cs" viewBox="0 0 20 20" aria-hidden="true">' + shape + '</svg>';
+  }
+
+  function secretCode(ref, rng) {
+    var text = ref.toUpperCase();
+    var used = [];
+    for (var i = 0; i < text.length; i++) {
+      var ch = text.charAt(i);
+      if (/[A-Z0-9]/.test(ch) && used.indexOf(ch) === -1) used.push(ch);
+    }
+    // Up to 3 decoy letters, fewer for long references so the key
+    // stays on one row, and never more than there are symbols
+    var decoys = Math.max(0, Math.min(3, 12 - used.length, SHAPES.length - used.length));
+    var spare = LETTERS.split('').filter(function (c) { return used.indexOf(c) === -1; });
+    var keyChars = used.concat(shuffled(spare, rng).slice(0, decoys));
+    var shapes = shuffled(SHAPES, rng);
+    var map = {};
+    keyChars.forEach(function (c, n) { map[c] = shapes[n % shapes.length]; });
+
+    // The message: a symbol and a blank for each letter or number
+    var msg = text.split(/\s+/).filter(Boolean).map(function (word) {
+      var cells = word.split('').map(function (c) {
+        return map[c]
+          ? '<span class="cc">' + symbol(map[c]) + '<i></i></span>'
+          : '<span class="cp">' + esc(c) + '</span>';
+      }).join('');
+      return '<span class="cw">' + cells + '</span>';
+    }).join('');
+
+    // The key: letters A to Z, then numbers
+    var letters = keyChars.filter(function (c) { return /[A-Z]/.test(c); }).sort();
+    var digits = keyChars.filter(function (c) { return /[0-9]/.test(c); }).sort();
+    function pair(c) { return '<span class="kp">' + symbol(map[c]) + '<b>' + c + '</b></span>'; }
+    var key = letters.map(pair).join('') +
+      (digits.length ? '<span class="kp-gap"></span>' + digits.map(pair).join('') : '');
+
+    return '<div class="code-msg" role="img" aria-label="' + esc(ref) + ' in secret code">' + msg + '</div>' +
+      '<div class="code-key"><span class="code-key-label">Key</span>' + key + '</div>';
+  }
+
   /* ── The activities ─────────────────────────────────── */
   var ACTIVITIES = {
     verse: function (body, rng, box) {
@@ -388,10 +554,10 @@ KIDS_JS = r"""
       var ref = pick(list, rng);
       for (var tries = 0; ref === last && tries < 20; tries++) ref = pick(list, rng);
       box.setAttribute('data-ref', ref);
-      // PLACEHOLDER: the reference will be written in secret code.
-      body.innerHTML =
-        '<p class="lookup-ref">' + esc(ref) + '</p>' +
-        '<p class="lookup-note">Coming next: this will be in secret code.</p>';
+      body.innerHTML = secretCode(ref, rng);
+      // Only on screen, above the sheet: which verse this sheet has
+      var answer = document.getElementById('kids-answer');
+      if (answer) answer.textContent = ref;
     },
     picture: placeholder('Hidden picture',
       'Number clues around a grid. Shade the right squares to find the picture.'),
@@ -500,24 +666,28 @@ KIDS_JS = r"""
 
 # The Grace House wheel (8 spokes), drawn in the text color. Same shape
 # as BRAND_LOGO in server.py, with heavier lines for the solid title.
+# Rim and spokes share one line weight.
 SHEET_WHEEL = (
     '<svg class="sh-wheel" viewBox="0 0 34 34" aria-hidden="true" '
     'fill="none" stroke="currentColor">'
-    '<circle cx="17" cy="17" r="13.6" stroke-width="4.2"/>'
-    '<line x1="17" y1="4" x2="17" y2="30" stroke-width="2.4"/>'
-    '<line x1="4" y1="17" x2="30" y2="17" stroke-width="2.4"/>'
-    '<line x1="7.81" y1="7.81" x2="26.19" y2="26.19" stroke-width="2.4"/>'
-    '<line x1="26.19" y1="7.81" x2="7.81" y2="26.19" stroke-width="2.4"/>'
+    '<circle cx="17" cy="17" r="13.6" stroke-width="3"/>'
+    '<line x1="17" y1="4" x2="17" y2="30" stroke-width="3"/>'
+    '<line x1="4" y1="17" x2="30" y2="17" stroke-width="3"/>'
+    '<line x1="7.81" y1="7.81" x2="26.19" y2="26.19" stroke-width="3"/>'
+    '<line x1="26.19" y1="7.81" x2="7.81" y2="26.19" stroke-width="3"/>'
     '<circle cx="17" cy="17" r="3.4" fill="currentColor" stroke="none"/>'
     "</svg>"
 )
 
-def _act(name: str, title: str) -> str:
-    """One shuffleable box: a label chip and an empty body for its maker."""
+def _act(name: str, title: str, note: str = "") -> str:
+    """One shuffleable box: a label chip, optional directions beside it,
+    and an empty body for its maker."""
+    note_html = f'<p class="act-note">{escape(note)}</p>' if note else ""
     return (
         f'<section class="act act-{name}" data-act="{name}" role="button" tabindex="0" '
         f'aria-label="{escape(title)}. Tap to shuffle.">'
         f'<h2 class="act-label">{escape(title)}</h2>'
+        f"{note_html}"
         '<div class="act-body"></div>'
         "</section>"
     )
@@ -538,7 +708,8 @@ def render_kids_sheet(verses: list[str], events) -> str:
         f"<style>{KIDS_CSS}</style>\n"
         '<div class="kids-bar">'
         '<button id="kids-print" class="kids-print" type="button">Print this sheet</button>'
-        '<span class="kids-hint">Tap any box to shuffle it.</span>'
+        '<span class="kids-hint">Tap any box to shuffle it.<br>'
+        'This sheet\'s verse: <b id="kids-answer"></b></span>'
         "</div>\n"
         '<div id="sheet-wrap" class="sheet-wrap">\n'
         f'<div id="sheet" class="sheet" data-verses="{verse_data}" data-events="{event_data}">\n'
@@ -551,7 +722,7 @@ def render_kids_sheet(verses: list[str], events) -> str:
         "</div>"
         '<div class="sh-kind">Activity Sheet</div>'
         "</div>"
-        f'{_act("verse", "Look it up")}'
+        f'{_act("verse", "Look it up", "Crack the code. Find it in a Bible. Write it below.")}'
         "</header>\n"
         '<div class="sh-lines" aria-hidden="true"><span></span><span></span></div>\n'
         '<div class="sh-grid">\n'
