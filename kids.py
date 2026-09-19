@@ -11,10 +11,8 @@ gives a fresh sheet every time, with nothing to rebuild.
     │ GRACE HOUSE KIDS  [ACTIVITY SHEET]       │
     ├──────────────────────────────────────────┤
     │ LOOK IT UP  directions                   │
-    │ (coded verse)              KEY (symbols) │
-    │ ________________________________________ │
-    │ ________________________________________ │
-    │ ________________________________________ │
+    │ (coded verse, with blanks to fill in)    │
+    │ KEY (symbols and what they stand for)    │
     ├────────────────────┬─────────────────────┤
     │ HIDDEN PICTURE     │ WORD SEARCH         │
     ├────────────────────┼─────────────────────┤
@@ -27,7 +25,7 @@ Where things come from:
     Look it up   a random reference from verses.txt (the same list as the
                  front page's verse chip), written in a secret code of
                  little symbols, with a key underneath. Kids crack the
-                 code, look the verse up, and copy it onto the lines.
+                 code, then look the verse up in a Bible.
                  Each shuffle picks a new verse and new symbols. The
                  answer shows above the sheet, on screen only.
     Next up      the first event in events.txt that's today or later.
@@ -208,34 +206,24 @@ main { max-width: calc(8.5in + 50px); }
 .act-body { position: relative; flex: 1; min-height: 0; }
 
 /* Look it up, full width: label and directions, then the coded
-   reference with the key beside it, then lines to copy the verse onto.
-   A long reference pushes the key down to its own row. */
+   reference, big enough to write in, then the key under it. */
 .act-verse {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   column-gap: 0.14in;
-  row-gap: 0.1in;
+  row-gap: 0.12in;
 }
 .act-verse .act-label { margin: 0; }
 .act-verse .act-body {
   grid-column: 1 / -1;
   flex: none;
   display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 0.1in 0.3in;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.16in;
 }
-.act-note { margin: 0; font-size: 9pt; line-height: 1.3; }
-
-/* Lines to copy the verse onto, spaced like wide-ruled notebook paper */
-.sh-lines { grid-column: 1 / -1; margin-top: -0.06in; }
-.sh-lines span {
-  display: block;
-  height: 0.34in;
-  border-bottom: 1.5px solid #0a0a0a;
-}
+.act-note { margin: 0; font-size: 9.5pt; line-height: 1.3; }
 
 /* Code symbols: drawn in the text color, a few of them filled in */
 .cs {
@@ -254,29 +242,29 @@ main { max-width: calc(8.5in + 50px); }
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
-  column-gap: 0.12in;
-  row-gap: 0.08in;
+  column-gap: 0.2in;
+  row-gap: 0.12in;
 }
 .cw { display: flex; align-items: flex-end; }
 .cc {
   display: flex;
   flex-direction: column;
   align-items: center;
-  width: 0.22in;
+  width: 0.31in;
 }
-.cc .cs { width: 0.17in; height: 0.17in; }
+.cc .cs { width: 0.24in; height: 0.24in; }
 .cc i {                       /* the blank to write the letter on */
   display: block;
-  width: 0.17in;
-  height: 0.21in;
+  width: 0.24in;
+  height: 0.32in;
   border-bottom: 1.5px solid #0a0a0a;
 }
 .cp {                         /* a colon or dash, printed as is */
-  width: 0.12in;
+  width: 0.16in;
   text-align: center;
   font-family: 'Big Shoulders Stencil Text', 'Impact', sans-serif;
   font-weight: 800;
-  font-size: 15pt;
+  font-size: 20pt;
   line-height: 1;
 }
 
@@ -285,13 +273,13 @@ main { max-width: calc(8.5in + 50px); }
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.03in;
+  gap: 0.05in;
 }
 .code-key-label {
-  margin-right: 0.05in;
+  margin-right: 0.06in;
   font-family: 'Big Shoulders Stencil Text', 'Impact', sans-serif;
   font-weight: 800;
-  font-size: 9.5pt;
+  font-size: 11pt;
   letter-spacing: 1.5px;
   text-transform: uppercase;
 }
@@ -299,19 +287,19 @@ main { max-width: calc(8.5in + 50px); }
   display: flex;
   flex-direction: column;
   align-items: center;
-  width: 0.22in;
-  padding: 3px 0 2px;
+  width: 0.3in;
+  padding: 4px 0 3px;
   border: 1px solid #0a0a0a;
 }
-.kp .cs { width: 0.14in; height: 0.14in; }
+.kp .cs { width: 0.19in; height: 0.19in; }
 .kp b {
-  margin-top: 2px;
+  margin-top: 3px;
   font-family: 'Big Shoulders Stencil Text', 'Impact', sans-serif;
   font-weight: 800;
-  font-size: 10.5pt;
+  font-size: 12.5pt;
   line-height: 1;
 }
-.kp-gap { width: 0.06in; }    /* between the letters and the numbers */
+.kp-gap { width: 0.1in; }     /* between the letters and the numbers */
 
 /* Next up */
 .sh-foot {
@@ -520,9 +508,9 @@ KIDS_JS = r"""
       var ch = text.charAt(i);
       if (/[A-Z0-9]/.test(ch) && used.indexOf(ch) === -1) used.push(ch);
     }
-    // Up to 3 decoy letters, fewer for long references so the key
+    // Up to 4 decoy letters, fewer for long references so the key
     // stays on one row, and never more than there are symbols
-    var decoys = Math.max(0, Math.min(3, 12 - used.length, SHAPES.length - used.length));
+    var decoys = Math.max(0, Math.min(4, 17 - used.length, SHAPES.length - used.length));
     var spare = LETTERS.split('').filter(function (c) { return used.indexOf(c) === -1; });
     var keyChars = used.concat(shuffled(spare, rng).slice(0, decoys));
     var shapes = shuffled(SHAPES, rng);
@@ -683,14 +671,9 @@ SHEET_WHEEL = (
     "</svg>"
 )
 
-# Three lines to copy the verse onto
-LINES = '<div class="sh-lines" aria-hidden="true"><span></span><span></span><span></span></div>'
-
-
-def _act(name: str, title: str, note: str = "", after: str = "") -> str:
+def _act(name: str, title: str, note: str = "") -> str:
     """One shuffleable box: a label chip, optional directions beside it,
-    an empty body for its maker, and optional fixed markup after that
-    (it stays put when the box shuffles)."""
+    and an empty body for its maker."""
     note_html = f'<p class="act-note">{escape(note)}</p>' if note else ""
     return (
         f'<section class="act act-{name}" data-act="{name}" role="button" tabindex="0" '
@@ -698,7 +681,6 @@ def _act(name: str, title: str, note: str = "", after: str = "") -> str:
         f'<h2 class="act-label">{escape(title)}</h2>'
         f"{note_html}"
         '<div class="act-body"></div>'
-        f"{after}"
         "</section>"
     )
 
@@ -731,7 +713,7 @@ def render_kids_sheet(verses: list[str], events) -> str:
         "</div>"
         '<div class="sh-kind">Activity Sheet</div>'
         "</header>\n"
-        f'{_act("verse", "Look it up", "Crack the code. Find it in a Bible. Write it on the lines.", LINES)}\n'
+        f'{_act("verse", "Look it up", "Crack the code, then find the verse in a Bible.")}\n'
         '<div class="sh-grid">\n'
         f'{_act("picture", "Hidden picture")}\n'
         f'{_act("words", "Word search")}\n'
