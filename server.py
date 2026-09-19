@@ -25,6 +25,20 @@ Bible verse chip: ./verses.txt — one reference per line (John 3:16),
 one picked at random on every visit and shown in the front page's
 top-right corner. Lines starting with # are ignored.
 
+Events: ./events.txt — one event per block, blank line between events.
+    September 27 2026
+    Fall potluck
+    Bring a dish to share. We eat at noon.
+The first line of a block is the date; everything after it is details
+(lines starting "- " become bullets). The events page shows this
+month's calendar with a pink circle on every day that has an event,
+then every event from today on. Both are worked out in the visitor's
+browser, so the page rolls over to a new day and month by itself and
+past events drop off without a rebuild. The weekday is figured out
+from the date, so you don't need to type it. Dates can be written
+"September 27 2026", "Sun Sep 27th, 2026", "9/27/2026" or
+"2026-09-27" — always with the year. Put times on the next line.
+
 Sections: see SECTIONS below. A section whose page isn't built yet
 shows a "coming soon" page with a way back home.
 
@@ -103,6 +117,7 @@ The public view skips it entirely.
 """
 from __future__ import annotations
 
+import datetime
 import http.server
 import json
 import os
@@ -122,6 +137,7 @@ KEY_PATH = HERE / "access-key.txt"
 ZINE_PATH = HERE / "zine.txt"
 QUOTE_PATH = HERE / "quote.txt"
 VERSES_PATH = HERE / "verses.txt"
+EVENTS_PATH = HERE / "events.txt"
 DEFAULT_PORT = 8000
 
 # Auto-scroll speed for songs with no [Speed:X] line. On screen, speed 1
@@ -297,6 +313,8 @@ READY_SECTIONS = {"zine", "hymnal"}
 def section_ready(slug: str) -> bool:
     if slug == "zine":
         return parse_zine() is not None
+    if slug == "events":
+        return EVENTS_PATH.exists()
     return slug in READY_SECTIONS
 
 
@@ -350,6 +368,121 @@ def _parse_speed(raw: str | None) -> float | None:
     except ValueError:
         return None
     return v if 0 < v <= 100 else None
+
+
+# ─────────────────────────────────────────────────────────────
+# Events
+
+MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July",
+               "August", "September", "October", "November", "December"]
+DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday",
+             "Saturday", "Sunday"]   # same order as date.weekday()
+
+_MONTH_WORDS = {"sept": 9}
+for _i, _name in enumerate(MONTH_NAMES, 1):
+    _MONTH_WORDS[_name.lower()] = _i
+    _MONTH_WORDS[_name[:3].lower()] = _i
+_WEEKDAY_WORDS = {"tues": 1, "thur": 3, "thurs": 3}
+for _i, _name in enumerate(DAY_NAMES):
+    _WEEKDAY_WORDS[_name.lower()] = _i
+    _WEEKDAY_WORDS[_name[:3].lower()] = _i
+_ORDINAL_BITS = {"st", "nd", "rd", "th", "of"}
+
+
+def parse_event_date(text: str) -> datetime.date | None:
+    """Read a date line: "September 27 2026", "Sun Sep 27th, 2026",
+    "27 September 2026", "9/27/2026" or "2026-09-27". A typed weekday is
+    allowed and ignored. Anything else on the line (like a time) means
+    it isn't a date line, and None comes back.
+    """
+    month, nums = None, []
+    for tok in re.findall(r"[a-z]+|\d+", text.lower()):
+        if tok.isdigit():
+            nums.append(tok)
+        elif tok in _MONTH_WORDS and month is None:
+            month = _MONTH_WORDS[tok]
+        elif tok not in _WEEKDAY_WORDS and tok not in _ORDINAL_BITS:
+            return None
+    try:
+        if month is not None and len(nums) == 2:
+            day, year = (nums[0], nums[1]) if len(nums[1]) == 4 else (nums[1], nums[0])
+            if len(year) == 4:
+                return datetime.date(int(year), month, int(day))
+        elif month is None and len(nums) == 3:
+            if len(nums[0]) == 4:                                  # 2026-09-27
+                return datetime.date(int(nums[0]), int(nums[1]), int(nums[2]))
+            if len(nums[2]) == 4:                                  # 9/27/2026
+                return datetime.date(int(nums[2]), int(nums[0]), int(nums[1]))
+    except ValueError:
+        pass   # e.g. September 31
+    return None
+
+
+def _looks_like_date(text: str) -> bool:
+    """A line that was probably meant as a date (month + number, or 9/27)."""
+    words = re.findall(r"[a-z]+", text.lower())
+    has_month = any(w in _MONTH_WORDS for w in words)
+    return (has_month and bool(re.search(r"\d", text))) or bool(
+        re.search(r"\d\s*[/.-]\s*\d", text))
+
+
+def parse_events() -> tuple[list[tuple[datetime.date, list[str]]], list[str]]:
+    """Return (events, problems) from events.txt.
+
+    events: [(date, [detail lines]), ...], soonest first (events on the
+    same day keep their order from the file).
+    problems: plain-English notes about lines that need fixing. build.py
+    prints these; the page itself just leaves the bad block out.
+
+    A block whose first line isn't a date is treated as more details for
+    the event above it, so a blank line inside an event's details is
+    fine. But if that line looks like a date that couldn't be read
+    (missing year, typo), it's reported and skipped instead of being
+    tacked onto the wrong day.
+    """
+    if not EVENTS_PATH.exists():
+        return [], []
+    raw = EVENTS_PATH.read_text(encoding="utf-8")
+    lines = [ln for ln in raw.splitlines() if not ln.strip().startswith("#")]
+    events: list[tuple[datetime.date, list[str]]] = []
+    problems: list[str] = []
+    for block in re.split(r"\n\s*\n", "\n".join(lines)):
+        block_lines = [ln.strip() for ln in block.splitlines() if ln.strip()]
+        if not block_lines:
+            continue
+        first = block_lines[0]
+        when = parse_event_date(first)
+        if when is None:
+            if _looks_like_date(first):
+                problems.append(f'"{first}" looks like a date but can\'t be read '
+                                "(missing year, or a time on the same line?). That event was left out.")
+            elif events:
+                events[-1][1].extend(block_lines)
+            else:
+                problems.append(f'"{first}" should be a date, like "September 27 2026". '
+                                "That block was left out.")
+            continue
+        typed = next((_WEEKDAY_WORDS[w] for w in re.findall(r"[a-z]+", first.lower())
+                      if w in _WEEKDAY_WORDS), None)
+        if typed is not None and typed != when.weekday():
+            problems.append(f'"{first}": that date is a {DAY_NAMES[when.weekday()]}, '
+                            "so that's what the page says.")
+        events.append((when, block_lines[1:]))
+    events.sort(key=lambda e: e[0])
+    return events, problems
+
+
+def _ordinal(n: int) -> str:
+    if 11 <= n % 100 <= 13:
+        return f"{n}th"
+    suffix = {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
+    return f"{n}{suffix}"
+
+
+def event_date_label(when: datetime.date) -> str:
+    """Sunday September 27th 2026"""
+    return (f"{DAY_NAMES[when.weekday()]} {MONTH_NAMES[when.month - 1]} "
+            f"{_ordinal(when.day)} {when.year}")
 
 
 # ─────────────────────────────────────────────────────────────
@@ -1057,6 +1190,83 @@ html.dark .p-theme .t-moon { opacity: 1; color: #f01a8b; }
 }
 
 /* ────────────────────────────────────────────────────────────
+   EVENTS PAGE — this month's calendar, then what's coming up.
+   The days are drawn by EVENTS_JS in the visitor's browser.
+   ──────────────────────────────────────────────────────────── */
+.events-chip { cursor: default; user-select: none; -webkit-user-select: none; }
+.cal {
+  margin: 20px 0 0;
+  padding: 10px 6px 8px;
+  background: #f2ede4;
+  border: 3px solid #0a0a0a;
+}
+.cal-head,
+.cal-days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  text-align: center;
+}
+.cal-head {
+  padding-bottom: 8px;
+  margin-bottom: 4px;
+  border-bottom: 1.5px dashed rgba(10, 10, 10, 0.35);
+  font-family: 'Special Elite', 'Courier New', monospace;
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #5a5a5a;
+}
+.cal-days { row-gap: 2px; }
+.cal-day {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 42px;
+}
+.cal-day span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  font-family: 'Big Shoulders Stencil Text', 'Impact', sans-serif;
+  font-weight: 800;
+  font-size: 20px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.cal-day.event span { background: #f01a8b; color: #ffffff; }
+.cal-day.today span { box-shadow: inset 0 0 0 2px #0a0a0a; }
+.cal-day.past { opacity: 0.3; }
+
+.ev-strip { margin-top: 24px; }
+.ev-day[hidden], .ev-none[hidden] { display: none; }
+.ev-item + .ev-item {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1.5px dashed rgba(10, 10, 10, 0.35);
+}
+.zine-body .ev-item p { margin: 0 0 4px; }
+.zine-body .ev-item > p:first-child {
+  margin-bottom: 6px;
+  font-family: 'Big Shoulders Stencil Text', 'Impact', sans-serif;
+  font-weight: 700;
+  font-size: 20px;
+  letter-spacing: 0.5px;
+  line-height: 1.05;
+  text-transform: uppercase;
+}
+.zine-body .ev-item > p:last-child { margin-bottom: 0; }
+.ev-none {
+  margin: 0;
+  padding: 26px 0 6px;
+  font-family: 'Special Elite', 'Courier New', monospace;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+/* ────────────────────────────────────────────────────────────
    NO HALO on anything with its own solid background (chips, tags,
    buttons, boxes, the control bar). The beige halo is only for text
    sitting directly on the dotted paper. Safari keeps drawing a halo
@@ -1074,7 +1284,8 @@ html.dark .p-theme .t-moon { opacity: 1; color: #f01a8b; }
 .sec, .sec *,
 .soon-box p,
 .player, .player *,
-.cd-box, .cd-box * {
+.cd-box, .cd-box *,
+.cal, .cal * {
   -webkit-text-stroke-width: 0 !important;
   -webkit-text-stroke-color: transparent !important;
   paint-order: normal !important;
@@ -1842,6 +2053,124 @@ def render_coming_soon(slug: str, key: str) -> str:
     return page(f"{title} — Grace House", body, key)
 
 
+# Draws the events calendar for the visitor's current month and hides
+# events whose day is over. Runs in the browser, so a static site that
+# was built weeks ago still shows the right month. It checks again every
+# minute (and when the tab comes back), so a page left open overnight
+# rolls over to the new day by itself. Clicking a day does nothing.
+EVENTS_JS = r"""
+(function () {
+  var cal = document.getElementById('cal');
+  if (!cal) return;
+  var MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July',
+                'August', 'September', 'October', 'November', 'December'];
+  var eventDays = {};
+  try {
+    JSON.parse(cal.getAttribute('data-dates')).forEach(function (d) { eventDays[d] = true; });
+  } catch (e) {}
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  var drawnFor = '';
+
+  function draw() {
+    var now = new Date();
+    var y = now.getFullYear(), m = now.getMonth(), today = now.getDate();
+    var todayKey = y + '-' + pad(m + 1) + '-' + pad(today);
+    if (todayKey === drawnFor) return;
+    drawnFor = todayKey;
+
+    // This month, Sunday first. Pink circle = something's on that day.
+    document.getElementById('cal-month').textContent = (MONTHS[m] + ' ' + y).toUpperCase();
+    var html = '';
+    var blanks = new Date(y, m, 1).getDay();
+    var total = new Date(y, m + 1, 0).getDate();
+    for (var i = 0; i < blanks; i++) html += '<div class="cal-day"></div>';
+    for (var d = 1; d <= total; d++) {
+      var cls = 'cal-day';
+      if (eventDays[y + '-' + pad(m + 1) + '-' + pad(d)]) cls += ' event';
+      if (d === today) cls += ' today';
+      else if (d < today) cls += ' past';
+      html += '<div class="' + cls + '"><span>' + d + '</span></div>';
+    }
+    document.getElementById('cal-days').innerHTML = html;
+
+    // The list: hide days that are over, count what's left.
+    var upcoming = 0;
+    var days = document.querySelectorAll('.ev-day[data-date]');
+    for (var j = 0; j < days.length; j++) {
+      var over = days[j].getAttribute('data-date') < todayKey;
+      days[j].hidden = over;
+      if (!over) upcoming += days[j].querySelectorAll('.ev-item').length;
+    }
+    document.getElementById('ev-none').hidden = upcoming > 0;
+    document.getElementById('ev-count').textContent =
+      upcoming ? upcoming + ' coming up' : 'nothing yet';
+  }
+
+  draw();
+  setInterval(draw, 60 * 1000);
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') draw();
+  });
+})();
+"""
+
+
+def render_events_page(key: str) -> str:
+    """This month's calendar with event days circled, then every event
+    from today on, grouped by day. The month, the circles and which
+    events are past are all decided in the browser (EVENTS_JS); the
+    HTML just carries every event from events.txt."""
+    events, _problems = parse_events()
+
+    # Several events on the same date share one date heading.
+    days: list[tuple[datetime.date, list[list[str]]]] = []
+    for when, details in events:
+        if days and days[-1][0] == when:
+            days[-1][1].append(details)
+        else:
+            days.append((when, [details]))
+
+    day_html = "\n".join(
+        f'<section class="zine-section ev-day" data-date="{when.isoformat()}">'
+        f'<h2 class="zine-heading">{escape(event_date_label(when))}</h2>'
+        '<div class="zine-body">'
+        + "".join(f'<div class="ev-item">{render_zine_body(d)}</div>' for d in items)
+        + "</div></section>"
+        for when, items in days
+    )
+    dates = sorted({when.isoformat() for when, _ in events})
+    # Fallback month for the rare phone with scripts off; the script
+    # replaces it with the visitor's own month.
+    today = datetime.date.today()
+    month_label = f"{MONTH_NAMES[today.month - 1]} {today.year}".upper()
+    weekdays = "".join(f"<span>{d}</span>" for d in
+                       ("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"))
+    count = f"{len(events)} coming up" if events else "nothing yet"
+
+    body = (
+        '<div class="hymn-nav-top">'
+        '<a href="." class="back-tag">← HOME</a>'
+        '<span class="foot-link events-chip">Events</span>'
+        "</div>\n"
+        f"{BRAND_LOGO}\n"
+        f'<div class="title-tag"><h1 id="cal-month">{month_label}</h1></div>\n'
+        f'<div class="cal" id="cal" aria-hidden="true" data-dates="{escape(json.dumps(dates))}">'
+        f'<div class="cal-head">{weekdays}</div>'
+        '<div class="cal-days" id="cal-days"></div>'
+        "</div>\n"
+        '<div class="meta-strip ev-strip">'
+        f'<span class="count-tag" id="ev-count">{count}</span>'
+        '<div class="dash-rule"></div>'
+        '<span class="hint">↓ details</span>'
+        "</div>\n"
+        f'<div class="ev-list">\n{day_html}\n</div>\n'
+        f'<p class="ev-none" id="ev-none"{" hidden" if events else ""}>'
+        "Nothing on the calendar right now. Check back soon.</p>\n"
+        f"<script>{EVENTS_JS}</script>"
+    )
+    return page("Events — Grace House", body, key)
+
+
 def render_blank() -> str:
     return (
         "<!DOCTYPE html>\n"
@@ -1943,6 +2272,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 render_zine_page(title, sections, key).encode("utf-8"),
                 "text/html; charset=utf-8",
             )
+            return
+        if inner == "/events" and section_ready("events"):
+            self._send(render_events_page(key).encode("utf-8"),
+                       "text/html; charset=utf-8")
             return
         # /hymn/N (public) and /musician/hymn/N (musician mirror) share
         # everything except the show_chords flag and their link prefixes.
