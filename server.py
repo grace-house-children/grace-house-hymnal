@@ -578,13 +578,20 @@ article h1 {
    dotted beige, so the beige halo would just fatten them oddly.
    Zero it out on those. (Chips: HYMNAL title tag, "14 songs" count,
    the zine + foot chips, back-tag on hymn pages, the black NEXT arrow.) */
+/* The halo is switched off with width 0 AND given the chip's own
+   background color. Safari sometimes draws the halo anyway; when it
+   does, it must match what's behind the text or it smudges it. */
 .title-tag h1,
-.count-tag,
-.zine-link,
-.foot-link,
 .back-tag,
 .foot .nav-next {
-  -webkit-text-stroke: 0;
+  -webkit-text-stroke-width: 0;
+  -webkit-text-stroke-color: #0a0a0a;
+}
+.count-tag,
+.zine-link,
+.foot-link {
+  -webkit-text-stroke-width: 0;
+  -webkit-text-stroke-color: #f01a8b;
 }
 
 /* Hide print-only elements on screen */
@@ -703,7 +710,8 @@ main { position: relative; }
   background: #0a0a0a;
   color: #f2ede4;
   transform: rotate(-1deg);
-  -webkit-text-stroke: 0;
+  -webkit-text-stroke-width: 0;
+  -webkit-text-stroke-color: #0a0a0a;
 }
 .quote p {
   margin: 0;
@@ -748,7 +756,8 @@ main { position: relative; }
   border: 3px solid #0a0a0a;
   box-shadow: 5px 5px 0 #0a0a0a;
   color: #0a0a0a !important;
-  -webkit-text-stroke: 0;
+  -webkit-text-stroke-width: 0;
+  -webkit-text-stroke-color: #f2ede4;
   transition: transform 0.08s, box-shadow 0.08s;
 }
 .sec:active { transform: translate(3px, 3px); box-shadow: 2px 2px 0 #0a0a0a; }
@@ -818,8 +827,10 @@ main { position: relative; }
   border: 3px dashed #0a0a0a;
   background: #f2ede4;
   text-align: center;
-  -webkit-text-stroke: 0;
+  -webkit-text-stroke-width: 0;
+  -webkit-text-stroke-color: #f2ede4;
 }
+.soon-box p { -webkit-text-stroke-width: 0; -webkit-text-stroke-color: #f2ede4; }
 .soon-big {
   margin: 0;
   font-family: 'Big Shoulders Stencil Display', 'Impact', sans-serif;
@@ -872,7 +883,8 @@ main { position: relative; }
   display: flex;
   flex-direction: column;
   gap: 6px;
-  -webkit-text-stroke: 0;
+  -webkit-text-stroke-width: 0;
+  -webkit-text-stroke-color: #f2ede4;
 }
 .player [hidden] { display: none !important; }
 .p-row {
@@ -978,7 +990,8 @@ html.dark .p-theme .t-moon { opacity: 1; color: #f01a8b; }
   text-align: center;
   transform: rotate(-1.5deg);
   box-shadow: 6px 6px 0 #f01a8b;
-  -webkit-text-stroke: 0;
+  -webkit-text-stroke-width: 0;
+  -webkit-text-stroke-color: #0a0a0a;
 }
 .cd-msg {
   font-family: 'Special Elite', monospace;
@@ -1009,7 +1022,8 @@ html.dark body {
   background: #000000;
   background-image: none;
   color: #f5f5f5;
-  -webkit-text-stroke: 0;   /* no dots, so no halo needed */
+  -webkit-text-stroke-width: 0;
+  -webkit-text-stroke-color: #000000;   /* no dots, so no halo needed */
 }
 html.dark .brand-line { -webkit-text-stroke: 1.5px #f5f5f5; }
 html.dark .brand svg circle,
@@ -1033,7 +1047,11 @@ html.dark .p-btn { border-color: #f5f5f5; color: #f5f5f5; }
 html.dark .p-main { background: #f5f5f5; color: #000000; }
 html.dark .p-main.on { background: #f01a8b; border-color: #f01a8b; color: #000000; }
 html.dark .p-val { color: #f5f5f5; }
-html.dark .cd-box { background: #f5f5f5; color: #000000; }
+html.dark .cd-box { background: #f5f5f5; color: #000000; -webkit-text-stroke-color: #f5f5f5; }
+html.dark .title-tag h1,
+html.dark .back-tag,
+html.dark .foot .nav-next { -webkit-text-stroke-color: #f5f5f5; }
+html.dark .player { -webkit-text-stroke-color: #000000; }
 
 /* ────────────────────────────────────────────────────────────
    PRINT STYLES — for musicians who want to write chords above
@@ -1047,7 +1065,7 @@ html.dark .cd-box { background: #f5f5f5; color: #000000; }
     /* Paper has no dot pattern — nix the halo so print stays crisp.
        Because the halo is now on body, resetting it here covers all
        inheriting descendants in one go. */
-    -webkit-text-stroke: 0 !important;
+    -webkit-text-stroke-width: 0 !important; -webkit-text-stroke-color: #ffffff !important;
   }
   main { max-width: none; padding: 0.55in 0.7in 0.55in 0.95in; }
 
@@ -1063,7 +1081,7 @@ html.dark .cd-box { background: #f5f5f5; color: #000000; }
     margin-bottom: 6pt;
   }
   article h1 {
-    -webkit-text-stroke: 0 !important;
+    -webkit-text-stroke-width: 0 !important; -webkit-text-stroke-color: #ffffff !important;
     color: #000 !important;
     font-family: 'Special Elite', 'Courier New', monospace !important;
     font-weight: 400;
@@ -1100,7 +1118,7 @@ html.dark .cd-box { background: #f5f5f5; color: #000000; }
   .v-label {
     font-family: 'Special Elite', monospace !important;
     color: #000 !important;
-    -webkit-text-stroke: 0 !important;
+    -webkit-text-stroke-width: 0 !important; -webkit-text-stroke-color: #ffffff !important;
     font-weight: 700;
     font-size: 15pt;
     line-height: 1;
@@ -1114,10 +1132,10 @@ html.dark .cd-box { background: #f5f5f5; color: #000000; }
     color: #000 !important;
     line-height: 1.2;
     /* Paper has no dot pattern — nix the halo so print stays crisp. */
-    -webkit-text-stroke: 0 !important;
+    -webkit-text-stroke-width: 0 !important; -webkit-text-stroke-color: #ffffff !important;
   }
   .notes-body {
-    -webkit-text-stroke: 0 !important;
+    -webkit-text-stroke-width: 0 !important; -webkit-text-stroke-color: #ffffff !important;
   }
 
   /* Tight lyric lines on paper (no more blank-space-for-handwriting;
