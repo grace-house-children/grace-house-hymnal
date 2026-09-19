@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Grace House — static site builder.
 
-Reads the same files server.py reads (hymns/, zine.txt, quote.txt) and
-writes a complete static site to ./dist that can be uploaded to any web
-host — GitHub Pages, Cloudflare Pages, Neocities, a USB stick, whatever.
+Reads the same files server.py reads (hymns/, zine.txt, quote.txt,
+events.txt) and writes a complete static site to ./dist that can be
+uploaded to any web host — GitHub Pages, Cloudflare Pages, Neocities, a
+USB stick, whatever.
 
 Usage:
     python3 build.py
@@ -25,9 +26,9 @@ Output:
     dist/{key}/musician/index.html       <- musician mirror TOC
     dist/{key}/musician/hymn/1/index.html
     dist/{key}/zine/index.html           <- the zine (or "coming soon")
-    dist/{key}/events/index.html         <- "coming soon" pages for sections
-    dist/{key}/who-we-are/index.html        that aren't built yet
-    dist/{key}/tracts/index.html
+    dist/{key}/events/index.html         <- calendar + events (or "coming soon")
+    dist/{key}/who-we-are/index.html     <- "coming soon" pages for sections
+    dist/{key}/tracts/index.html            that aren't built yet
     dist/{key}/kids/index.html
     dist/{key}/qr/index.html             <- QR code for the front page
 
@@ -179,6 +180,17 @@ def build() -> None:
     if zine is not None:
         title, sections = zine
         page_out(f"{key}/zine/index.html", server.render_zine_page(title, sections, key), key, 1)
+
+    # Events — /{key}/events/index.html. Every event goes in; visitors'
+    # browsers pick the month and hide the ones that are over, so this
+    # page never needs a rebuild just because time passed.
+    if server.section_ready("events"):
+        page_out(f"{key}/events/index.html", server.render_events_page(key), key, 1)
+        events, problems = server.parse_events()
+        print(f"Events: {len(events)} in events.txt")
+        on_github = os.environ.get("GITHUB_ACTIONS") == "true"
+        for msg in problems:
+            print(f"::warning::events.txt: {msg}" if on_github else f"  ! events.txt: {msg}")
 
     # "Coming soon" for every front-page section without a real page yet.
     print("Sections:")
