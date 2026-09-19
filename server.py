@@ -289,7 +289,7 @@ body {
   background-size: 40px 40px, 55px 55px, 47px 47px, 62px 62px, 33px 33px, 51px 51px, 44px 44px, 58px 58px;
 }
 main {
-  max-width: 42rem;
+  max-width: calc(42rem * var(--fs, 1));
   margin: 0 auto;
   padding: 24px 22px 44px;
 }
