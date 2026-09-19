@@ -1057,6 +1057,30 @@ html.dark .p-theme .t-moon { opacity: 1; color: #f01a8b; }
 }
 
 /* ────────────────────────────────────────────────────────────
+   NO HALO on anything with its own solid background (chips, tags,
+   buttons, boxes, the control bar). The beige halo is only for text
+   sitting directly on the dotted paper. Safari keeps drawing a halo
+   even at width 0 unless paint order is reset too, so all three are
+   forced here, last and !important, so nothing above can undo it.
+   ──────────────────────────────────────────────────────────── */
+.title-tag, .title-tag *,
+.count-tag,
+.zine-link, .verse-chip,
+.foot-link,
+.back-tag,
+.foot .nav-next,
+.soon-tag,
+.quote, .quote *,
+.sec, .sec *,
+.soon-box p,
+.player, .player *,
+.cd-box, .cd-box * {
+  -webkit-text-stroke-width: 0 !important;
+  -webkit-text-stroke-color: transparent !important;
+  paint-order: normal !important;
+}
+
+/* ────────────────────────────────────────────────────────────
    DARK MODE (musician pages only) — black page, white text,
    pink chords and labels stay pink.
    ──────────────────────────────────────────────────────────── */
