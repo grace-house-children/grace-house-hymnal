@@ -1,1 +1,6 @@
+# Front page quotes — one is picked at random on every visit.
+# Separate quotes with a blank line. Quote marks are added for you.
+# To credit someone, add a line starting with a dash under the quote.
+# Lines starting with # (like these) are ignored.
+
 If I only love people like me, I must really love me.
