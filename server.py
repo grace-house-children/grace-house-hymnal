@@ -127,6 +127,7 @@ import socket
 import socketserver
 import sys
 import urllib.parse
+from kids import render_kids_sheet
 from html import escape
 from pathlib import Path
 
@@ -307,8 +308,7 @@ SECTIONS = [
     ("tracts",     "Tracts",          "Free to download"),
     ("kids",       "Kids Activities", "Word searches, mazes & coloring"),
 ]
-READY_SECTIONS = {"zine", "hymnal"}
-
+READY_SECTIONS = {"zine", "hymnal", "kids", "events"}
 
 def section_ready(slug: str) -> bool:
     if slug == "zine":
@@ -2170,6 +2170,18 @@ def render_events_page(key: str) -> str:
     )
     return page("Events — Grace House", body, key)
 
+def render_kids_page(key: str) -> str:
+    """Kids activity sheet. The sheet itself is built in kids.py."""
+    events, _problems = parse_events()
+    body = (
+        '<div class="hymn-nav-top">'
+        '<a href="." class="back-tag">← HOME</a>'
+        "</div>\n"
+        f"{BRAND_LOGO}\n"
+        f'<div class="title-tag"><h1>{escape(section_title("kids").upper())}</h1></div>\n'
+        f"{render_kids_sheet(load_verses(), events)}"
+    )
+    return page("Kids — Grace House", body, key)
 
 def render_blank() -> str:
     return (
@@ -2272,6 +2284,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 render_zine_page(title, sections, key).encode("utf-8"),
                 "text/html; charset=utf-8",
             )
+            return
+        if inner == "/kids":
+            self._send(render_kids_page(key).encode("utf-8"), "text/html; charset=utf-8")
             return
         if inner == "/events" and section_ready("events"):
             self._send(render_events_page(key).encode("utf-8"),
