@@ -751,8 +751,13 @@ main { position: relative; }
   -webkit-text-stroke: 0;
   transition: transform 0.08s, box-shadow 0.08s;
 }
-.sec:hover { box-shadow: 5px 5px 0 #f01a8b; }
 .sec:active { transform: translate(3px, 3px); box-shadow: 2px 2px 0 #0a0a0a; }
+/* Beige normally, pink on hover (mouse) or while a finger is on it (phone).
+   hover:hover keeps phones from getting stuck pink after a tap. */
+.sec:active { background: #f01a8b; }
+@media (hover: hover) {
+  .sec:hover { background: #f01a8b; }
+}
 .sec:focus-visible { outline: 3px solid #f01a8b; outline-offset: 4px; }
 .sec-name {
   display: block;
@@ -766,8 +771,16 @@ main { position: relative; }
   display: block;
   margin-top: 6px;
   font-family: 'Special Elite', 'Courier New', monospace;
-  font-size: 12px;
-  opacity: 0.7;
+  font-size: 13px;
+  color: #3a3a3a;
+}
+/* Buttons have their own solid background, so no beige halo anywhere
+   inside them. Safari needs this spelled out on the children too, or
+   the halo smudges small text. */
+.sec, .sec * {
+  -webkit-text-stroke-width: 0 !important;
+  -webkit-text-stroke-color: #f2ede4 !important;  /* beige, never gray */
+  paint-order: normal;
 }
 .sec-arrow {
   font-family: 'Big Shoulders Stencil Display', 'Impact', sans-serif;
@@ -776,10 +789,9 @@ main { position: relative; }
   color: #f01a8b;
   flex-shrink: 0;
 }
-/* Sections that aren't built yet: dashed border, outlined name. */
+/* Sections that aren't built yet: dashed border, no shadow. Name stays
+   solid black so it's readable without hovering. */
 .sec.soon { border-style: dashed; box-shadow: none; }
-.sec.soon:hover { box-shadow: none; border-color: #f01a8b; }
-.sec.soon .sec-name { color: transparent; -webkit-text-stroke: 1.5px #0a0a0a; }
 .soon-tag {
   flex-shrink: 0;
   background: #f01a8b;
@@ -790,6 +802,13 @@ main { position: relative; }
   letter-spacing: 1.5px;
   text-transform: uppercase;
   transform: rotate(3deg);
+}
+
+.sec:active .sec-arrow { color: #0a0a0a; }
+.sec:active .soon-tag { background: #0a0a0a; color: #f2ede4; }
+@media (hover: hover) {
+  .sec:hover .sec-arrow { color: #0a0a0a; }
+  .sec:hover .soon-tag { background: #0a0a0a; color: #f2ede4; }
 }
 
 /* Coming-soon page */
