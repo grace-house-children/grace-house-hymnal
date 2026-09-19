@@ -10,16 +10,16 @@ Usage:
     python3 build.py
 
 Output:
-    dist/                           <- upload this whole folder
-    dist/index.html                 <- friendly landing page (nothing here)
-    dist/{key}/index.html           <- the hymnal TOC
+    dist/                              <- upload this whole folder
+    dist/index.html                    <- friendly landing page (nothing here)
+    dist/{key}/index.html              <- the hymnal TOC
     dist/{key}/style.css
-    dist/{key}/qr-code.png          <- if you have one
-    dist/{key}/hymn/1/index.html    <- each hymn as its own page
+    dist/{key}/qr-code.png             <- if you have one
+    dist/{key}/hymn/1/index.html       <- each hymn as its own page
     dist/{key}/hymn/2/index.html
-    dist/{key}/zine/index.html      <- if zine.txt exists
-    dist/{key}/print/index.html     <- musician's booklet
-    dist/{key}/qr/index.html        <- the QR-code viewer page
+    dist/{key}/zine/index.html         <- if zine.txt exists
+    dist/{key}/print/index.html        <- musician's booklet
+    dist/{key}/qr/index.html           <- the QR-code viewer page
 
 The URLs work exactly like your local server: /{key}/ for the hymnal,
 /{key}/hymn/5 for hymn #5, and so on. Anyone without the key just
@@ -42,10 +42,10 @@ def write(rel_path: str, content: str | bytes, key: str) -> None:
     """Write a file into dist/. Text is rewritten so links work on a static host.
 
     On a static host, we don't have URL rewriting, so:
-      - /{key}/hymn/5    becomes  /{key}/hymn/5/index.html
-      - /{key}/zine      becomes  /{key}/zine/index.html
-      - /{key}/print     becomes  /{key}/print/index.html
-      - /{key}/qr        becomes  /{key}/qr/index.html
+      - /{key}/hymn/5  becomes  /{key}/hymn/5/index.html
+      - /{key}/zine    becomes  /{key}/zine/index.html
+      - /{key}/print   becomes  /{key}/print/index.html
+      - /{key}/qr      becomes  /{key}/qr/index.html
     We keep the pretty URLs by putting each page inside its own folder
     and letting the server serve index.html.
     """
@@ -84,12 +84,12 @@ def rewrite_base(html: str, key: str, depth: int) -> str:
     a project subpath (GitHub Pages: /repo-name/).
 
     depth = number of folder levels the page sits below /KEY/.
-      TOC             /KEY/index.html                    depth 0 -> "./"
-      hymn 5          /KEY/hymn/5/index.html             depth 2 -> "../../"
-      musician TOC    /KEY/musician/index.html           depth 1 -> "../"
-      musician hymn 5 /KEY/musician/hymn/5/index.html    depth 3 -> "../../../"
-      zine            /KEY/zine/index.html               depth 1 -> "../"
-      qr              /KEY/qr/index.html                 depth 1 -> "../"
+      TOC              /KEY/index.html                   depth 0 -> "./"
+      hymn 5           /KEY/hymn/5/index.html            depth 2 -> "../../"
+      musician TOC     /KEY/musician/index.html          depth 1 -> "../"
+      musician hymn 5  /KEY/musician/hymn/5/index.html   depth 3 -> "../../../"
+      zine             /KEY/zine/index.html              depth 1 -> "../"
+      qr               /KEY/qr/index.html                depth 1 -> "../"
     """
     relative = "./" if depth == 0 else "../" * depth
     return html.replace(f'<base href="/{key}/">', f'<base href="{relative}">')
@@ -121,8 +121,8 @@ def build() -> None:
 
     key = server.load_key()
     key_dir = f"{key}"
-
     hymns = server.load_hymns()
+
     print(f"Building site with access key: {key}")
     print(f"Found {len(hymns)} hymns.")
 
@@ -143,7 +143,7 @@ def build() -> None:
 
     # Each public hymn page — /{key}/hymn/N/index.html
     for idx, (number, _title, filepath) in enumerate(hymns):
-        title, verses = server.parse_hymn(filepath)
+        title, verses, _meta = server.parse_hymn(filepath)
         prev_n = hymns[idx - 1][0] if idx > 0 else None
         next_n = hymns[idx + 1][0] if idx < len(hymns) - 1 else None
         html = rewrite_hymn_links(server.render_hymn_page(number, title, verses, prev_n, next_n, key))
@@ -151,19 +151,23 @@ def build() -> None:
         print(f"  #{number:>3}  {title}")
 
     # The musician mirror — same hymns, but the [X] chord markers are
-    # rendered inline as pink brackets instead of stripped out.
+    # rendered inline as pink brackets instead of stripped out, plus the
+    # scroll / transpose / text size / dark mode control bar. meta carries
+    # each song's [Speed:X] and [Key:X] into that control bar.
     print("Musicians mirror:")
     musician_toc = rewrite_hymn_links(server.render_toc(hymns, key, musician=True))
     write(f"{key_dir}/musician/index.html", rewrite_base(musician_toc, key, 1), key)
     for idx, (number, _title, filepath) in enumerate(hymns):
-        title, verses = server.parse_hymn(filepath)
+        title, verses, meta = server.parse_hymn(filepath)
         prev_n = hymns[idx - 1][0] if idx > 0 else None
         next_n = hymns[idx + 1][0] if idx < len(hymns) - 1 else None
         html = rewrite_hymn_links(
-            server.render_hymn_page(number, title, verses, prev_n, next_n, key, musician=True)
+            server.render_hymn_page(number, title, verses, prev_n, next_n, key,
+                                    musician=True, meta=meta)
         )
         write(f"{key_dir}/musician/hymn/{number}/index.html", rewrite_base(html, key, 3), key)
-        print(f"  #{number:>3}  {title}")
+        speed = meta.get("speed")
+        print(f"  #{number:>3}  {title}" + (f"  (speed {speed})" if speed else ""))
 
     # Zine — /{key}/zine/index.html (only if zine.txt exists)
     zine = server.parse_zine()
