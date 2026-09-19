@@ -1,0 +1,9 @@
+# The access key lives in the HYMNAL_KEY GitHub secret, not in the repo.
+# Keep your local copy in access-key.txt — git will ignore it.
+access-key.txt
+
+# Built site (GitHub builds its own copy on every push)
+dist/
+
+# Python cache
+__pycache__/
