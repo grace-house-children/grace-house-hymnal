@@ -130,12 +130,31 @@ main { max-width: calc(8.5in + 50px); }
   align-items: flex-start;
 }
 .sh-brand {
+  display: flex;
+  align-items: center;
   font-family: 'Big Shoulders Stencil Display', 'Impact', sans-serif;
   font-weight: 900;
   font-size: 34pt;
   line-height: 0.85;
   letter-spacing: -0.5px;
   text-transform: uppercase;
+  white-space: nowrap;
+}
+/* The 8-spoke wheel stands in for the O in HOUSE, same as the site's
+   logo, but drawn heavier to match the solid letters. */
+.sh-wheel {
+  width: 0.77em;
+  height: 0.77em;
+  margin: 0 -0.02em 0 -0.04em;
+  flex-shrink: 0;
+}
+/* Read aloud by screen readers, never shown */
+.sh-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
   white-space: nowrap;
 }
 .sh-kind {
@@ -293,19 +312,23 @@ main { max-width: calc(8.5in + 50px); }
   .act.shuffled { animation: none; }
 }
 
-/* ── Printing: only the sheet, full size, one page ───────── */
+/* ── Printing: only the sheet, full size, one page ───────────
+   Don't lock html/body to a height or hide their overflow here:
+   Safari then prints from wherever the page was scrolled to, and the
+   top of the sheet gets cut off. Instead the sheet is a hair shorter
+   than the paper, so rounding can never spill a blank second page. */
 @media print {
-  html, body {
-    width: 8.5in !important;
-    height: 11in !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    overflow: hidden !important;
-  }
+  html, body { margin: 0 !important; padding: 0 !important; }
   main { max-width: none !important; margin: 0 !important; padding: 0 !important; }
   main > :not(.sheet-wrap) { display: none !important; }
   .sheet-wrap { height: auto !important; overflow: visible !important; }
-  .sheet { transform: none !important; box-shadow: none !important; }
+  .sheet {
+    height: 10.98in;
+    transform: none !important;
+    box-shadow: none !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
 }
 """
 
@@ -453,13 +476,41 @@ KIDS_JS = r"""
   fit();
   window.addEventListener('resize', fit);
 
-  document.getElementById('kids-print').onclick = function () { window.print(); };
+  /* ── Printing ───────────────────────────────────────── */
+  // Some browsers (Safari) print from the current scroll position, so
+  // jump to the top while printing and come back afterward. Covers both
+  // the Print button and Cmd+P / Ctrl+P.
+  var savedY = null;
+  function toTop() {
+    if (savedY === null) savedY = window.scrollY;
+    window.scrollTo(0, 0);
+  }
+  function comeBack() {
+    if (savedY !== null) { window.scrollTo(0, savedY); savedY = null; }
+  }
+  window.addEventListener('beforeprint', toTop);
+  window.addEventListener('afterprint', comeBack);
+  document.getElementById('kids-print').onclick = function () { toTop(); window.print(); };
 })();
 """
 
 
 # ─────────────────────────────────────────────────────────────
 # Markup
+
+# The Grace House wheel (8 spokes), drawn in the text color. Same shape
+# as BRAND_LOGO in server.py, with heavier lines for the solid title.
+SHEET_WHEEL = (
+    '<svg class="sh-wheel" viewBox="0 0 34 34" aria-hidden="true" '
+    'fill="none" stroke="currentColor">'
+    '<circle cx="17" cy="17" r="13.6" stroke-width="4.2"/>'
+    '<line x1="17" y1="4" x2="17" y2="30" stroke-width="2.4"/>'
+    '<line x1="4" y1="17" x2="30" y2="17" stroke-width="2.4"/>'
+    '<line x1="7.81" y1="7.81" x2="26.19" y2="26.19" stroke-width="2.4"/>'
+    '<line x1="26.19" y1="7.81" x2="7.81" y2="26.19" stroke-width="2.4"/>'
+    '<circle cx="17" cy="17" r="3.4" fill="currentColor" stroke="none"/>'
+    "</svg>"
+)
 
 def _act(name: str, title: str) -> str:
     """One shuffleable box: a label chip and an empty body for its maker."""
@@ -493,7 +544,11 @@ def render_kids_sheet(verses: list[str], events) -> str:
         f'<div id="sheet" class="sheet" data-verses="{verse_data}" data-events="{event_data}">\n'
         '<header class="sh-head">'
         '<div class="sh-title">'
-        '<div class="sh-brand">Grace House Kids</div>'
+        '<div class="sh-brand">'
+        '<span class="sh-sr">Grace House Kids</span>'
+        f'<span aria-hidden="true">Grace H</span>{SHEET_WHEEL}'
+        '<span aria-hidden="true">use Kids</span>'
+        "</div>"
         '<div class="sh-kind">Activity Sheet</div>'
         "</div>"
         f'{_act("verse", "Look it up")}'
