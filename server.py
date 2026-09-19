@@ -1,13 +1,25 @@
 #!/usr/bin/env python3
-"""Grace House Hymnal — a tiny local web server for a home church.
+"""Grace House — a tiny web site for a home church.
 
-Reads plain-text hymns from ./hymns and serves them as a numbered
-table of contents plus per-hymn pages, mobile-first, styled to match
-the Grace House brand.
+The front page (/{key}/) shows a swappable quote and a button for each
+section of the site. The hymnal reads plain-text hymns from ./hymns and
+serves them as a numbered table of contents (/{key}/hymnal/) plus
+per-hymn pages, mobile-first, styled to match the Grace House brand.
 
-The entire site is served under a URL prefix (the "access key") loaded
-from ./access-key.txt. Anyone without the key sees a 404 page. The QR
-code has the key baked in — one scan = one tap = they're in.
+The entire site is served under a URL prefix (the "access key"). The
+key comes from the HYMNAL_KEY environment variable (GitHub stores it as
+a secret and hands it to the build), or from ./access-key.txt on your
+own computer. access-key.txt is listed in .gitignore so it never goes
+back into the repo. Anyone without the key sees a 404 page. The QR code
+page (/{key}/qr) draws the code from the site's own address, so it
+always matches the current key.
+
+Front page quote: ./quote.txt
+    If I only love people like me, I must really love me.
+    — optional attribution line starting with a dash
+
+Sections: see SECTIONS below. A section whose page isn't built yet
+shows a "coming soon" page with a way back home.
 
 Usage:
     python3 server.py           # serves on port 8000
@@ -85,6 +97,7 @@ The public view skips it entirely.
 from __future__ import annotations
 
 import http.server
+import os
 import re
 import secrets
 import socket
@@ -99,6 +112,7 @@ HYMNS_DIR = HERE / "hymns"
 QR_PATH = HERE / "qr-code.png"
 KEY_PATH = HERE / "access-key.txt"
 ZINE_PATH = HERE / "zine.txt"
+QUOTE_PATH = HERE / "quote.txt"
 DEFAULT_PORT = 8000
 
 # Auto-scroll speed for songs with no [Speed:X] line. On screen, speed 1
@@ -113,6 +127,11 @@ META_RE = re.compile(r"^\s*\[\s*(speed|key)\s*:\s*([^\]]*?)\s*\]\s*$", re.IGNORE
 # Access key
 
 def load_key() -> str:
+    # On GitHub, the key comes from the HYMNAL_KEY secret.
+    env_key = re.sub(r"[^A-Za-z0-9_-]", "", os.environ.get("HYMNAL_KEY", "").strip())
+    if env_key:
+        return env_key
+    # On your own computer, it comes from access-key.txt (never committed).
     if not KEY_PATH.exists():
         key = "grace-" + secrets.token_urlsafe(6).lower().replace("_", "-")
         KEY_PATH.write_text(key + "\n", encoding="utf-8")
@@ -245,6 +264,57 @@ def parse_hymn(path):
             auto_num += 1
         verses.append((label, content_lines))
     return title, verses, meta
+
+
+# ─────────────────────────────────────────────────────────────
+# Front page sections
+#
+# (slug, button title, one-line description). Order here = order on the
+# front page. The slug is the page's address: /{key}/<slug>/.
+# When you build a section's real page, add its slug to READY_SECTIONS
+# (and add its route in Handler.do_GET and in build.py).
+
+SECTIONS = [
+    ("zine",       "Sunday Zine",     "This week at Grace House"),
+    ("hymnal",     "Hymnal",          "Songs we sing together"),
+    ("events",     "Events",          "What's coming up"),
+    ("who-we-are", "Who We Are",      "What we believe"),
+    ("tracts",     "Tracts",          "Free to download"),
+    ("kids",       "Kids Activities", "Word searches, mazes & coloring"),
+]
+READY_SECTIONS = {"zine", "hymnal"}
+
+
+def section_ready(slug: str) -> bool:
+    if slug == "zine":
+        return parse_zine() is not None
+    return slug in READY_SECTIONS
+
+
+def section_title(slug: str) -> str:
+    return next((t for s, t, _ in SECTIONS if s == slug), slug)
+
+
+def parse_quote():
+    """Return (text, attribution) from quote.txt, or None.
+
+    Line 1 is the quote (surrounding quote marks are optional and get
+    stripped — the page draws its own). An optional later line starting
+    with a dash is the attribution.
+    """
+    if not QUOTE_PATH.exists():
+        return None
+    lines = [ln.strip() for ln in QUOTE_PATH.read_text(encoding="utf-8").splitlines() if ln.strip()]
+    if not lines:
+        return None
+    text_lines, cite = [], ""
+    for ln in lines:
+        if ln[0] in "-—–" and text_lines:
+            cite = ln.lstrip("-—– ").strip()
+        else:
+            text_lines.append(ln)
+    text = " ".join(text_lines).strip().strip('"“”').strip()
+    return (text, cite) if text else None
 
 
 def _parse_speed(raw: str | None) -> float | None:
@@ -624,15 +694,143 @@ main { position: relative; }
   transform: rotate(-1deg);
 }
 
+/* ────────────────────────────────────────────────────────────
+   FRONT PAGE — quote + section buttons
+   ──────────────────────────────────────────────────────────── */
+.quote {
+  margin: 26px 0 0;
+  padding: 16px 20px 18px;
+  background: #0a0a0a;
+  color: #f2ede4;
+  transform: rotate(-1deg);
+  -webkit-text-stroke: 0;
+}
+.quote p {
+  margin: 0;
+  font-family: 'Special Elite', 'Courier New', monospace;
+  font-size: 19px;
+  line-height: 1.4;
+}
+.quote p::before {
+  content: "\201C";
+  font-family: 'Big Shoulders Stencil Display', 'Impact', sans-serif;
+  font-weight: 900;
+  font-size: 58px;
+  line-height: 0;
+  color: #f01a8b;
+  vertical-align: -0.38em;
+  margin-right: 6px;
+}
+.quote cite {
+  display: block;
+  margin-top: 10px;
+  font-style: normal;
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: #f01a8b;
+}
+.sections {
+  list-style: none;
+  margin: 34px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.sec {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px 15px 18px;
+  background: #f2ede4;
+  border: 3px solid #0a0a0a;
+  box-shadow: 5px 5px 0 #0a0a0a;
+  color: #0a0a0a !important;
+  -webkit-text-stroke: 0;
+  transition: transform 0.08s, box-shadow 0.08s;
+}
+.sec:hover { box-shadow: 5px 5px 0 #f01a8b; }
+.sec:active { transform: translate(3px, 3px); box-shadow: 2px 2px 0 #0a0a0a; }
+.sec:focus-visible { outline: 3px solid #f01a8b; outline-offset: 4px; }
+.sec-name {
+  display: block;
+  font-family: 'Big Shoulders Stencil Display', 'Impact', sans-serif;
+  font-weight: 900;
+  font-size: 36px;
+  line-height: 0.9;
+  text-transform: uppercase;
+}
+.sec-sub {
+  display: block;
+  margin-top: 6px;
+  font-family: 'Special Elite', 'Courier New', monospace;
+  font-size: 12px;
+  opacity: 0.7;
+}
+.sec-arrow {
+  font-family: 'Big Shoulders Stencil Display', 'Impact', sans-serif;
+  font-weight: 900;
+  font-size: 32px;
+  color: #f01a8b;
+  flex-shrink: 0;
+}
+/* Sections that aren't built yet: dashed border, outlined name. */
+.sec.soon { border-style: dashed; box-shadow: none; }
+.sec.soon:hover { box-shadow: none; border-color: #f01a8b; }
+.sec.soon .sec-name { color: transparent; -webkit-text-stroke: 1.5px #0a0a0a; }
+.soon-tag {
+  flex-shrink: 0;
+  background: #f01a8b;
+  color: #0a0a0a;
+  padding: 2px 8px 3px;
+  font-family: 'Special Elite', monospace;
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  transform: rotate(3deg);
+}
+
+/* Coming-soon page */
+.soon-box {
+  margin: 34px 0 0;
+  padding: 26px 22px 28px;
+  border: 3px dashed #0a0a0a;
+  background: #f2ede4;
+  text-align: center;
+  -webkit-text-stroke: 0;
+}
+.soon-big {
+  margin: 0;
+  font-family: 'Big Shoulders Stencil Display', 'Impact', sans-serif;
+  font-weight: 900;
+  font-size: 54px;
+  line-height: 0.9;
+  text-transform: uppercase;
+  color: transparent;
+  -webkit-text-stroke: 2px #0a0a0a;
+}
+.soon-box p {
+  margin: 14px 0 22px;
+  font-family: 'Special Elite', 'Courier New', monospace;
+  font-size: 14px;
+  line-height: 1.55;
+}
+.soon-box .sec { display: inline-flex; box-shadow: 5px 5px 0 #0a0a0a; }
+.soon-box .sec-name { font-size: 26px; }
+
 /* QR page */
 .qr-wrap { text-align: center; padding: 2rem 0; }
-.qr-wrap img {
+.qr-wrap img,
+.qr-wrap canvas {
   max-width: 320px;
   width: 100%;
   height: auto;
   background: white;
   padding: 12px;
 }
+#qr { display: inline-block; }
 .qr-wrap p { font-family: 'Special Elite', monospace; font-size: 0.95rem; }
 .qr-wrap code {
   font-family: 'Special Elite', monospace;
@@ -1212,20 +1410,20 @@ def render_toc(hymns, key: str, musician: bool = False) -> str:
         f"</a></li>"
         for (n, t, _) in hymns
     )
-    # Zine chip in the top-right, on BOTH views if zine.txt exists —
-    # the musician gets to the zine the same way the congregation does.
-    zine = parse_zine()
-    top_right = ""
-    if zine is not None:
-        zine_title, _ = zine
-        top_right = f'<a href="zine" class="zine-link">{escape(zine_title.upper())} →</a>'
+    # The zine now has its own button on the front page, so the hymnal
+    # TOC just gets a way back home.
+    top_right = (
+        '<div class="hymn-nav-top">'
+        '<a href="." class="back-tag">← HOME</a>'
+        "</div>"
+    )
     # The foot chip swaps between "Musicians →" (from hymnal) and "← Hymnal"
     # (from musicians), mirroring each other at the bottom of the TOC.
     if musician:
         title_word = "MUSICIANS"
         foot = (
             '<div class="foot-actions">'
-            '<a href="." class="foot-link">← Hymnal</a>'
+            '<a href="hymnal/" class="foot-link">← Hymnal</a>'
             "</div>"
         )
         page_title = "Musicians — Grace House Hymnal"
@@ -1298,7 +1496,7 @@ def render_zine_page(title, sections, key):
         pass
     body = (
         '<div class="hymn-nav-top">'
-        '<a href="." class="back-tag">← HYMNAL</a>'
+        '<a href="." class="back-tag">← HOME</a>'
         '<span class="song-num">✦</span>'
         "</div>\n"
         f"{BRAND_LOGO}\n"
@@ -1401,7 +1599,7 @@ def render_hymn_page(number, title, verses, prev_n, next_n, key: str,
     # Links stay bare on public pages, prefixed with "musician/" on the mirror,
     # so the base href /{key}/ resolves them into the right subtree either way.
     hymn_prefix = "musician/hymn" if musician else "hymn"
-    home_href = "musician/" if musician else "."
+    home_href = "musician/" if musician else "hymnal/"
     back_label = "← MUSICIANS" if musician else "← ALL HYMNS"
     prev_link = (
         f'<a class="nav-prev" href="{hymn_prefix}/{prev_n}">← PREV</a>'
@@ -1433,22 +1631,76 @@ def render_hymn_page(number, title, verses, prev_n, next_n, key: str,
     return page(f"{title}{title_suffix} — Grace House Hymnal", body, key, musician=musician)
 
 
-def render_qr_page(url: str, have_png: bool, key: str) -> str:
-    if have_png:
-        img = '<img src="qr-code.png" alt="QR code">'
-    else:
-        img = "<p><em>qr-code.png not found.</em></p>"
+def render_qr_page(key: str) -> str:
+    """QR code for the front page, drawn in the browser from the page's
+    own address — so it always has the current key and the real site URL,
+    and no QR image (with the key baked in) has to live in the repo."""
     body = (
         '<div class="hymn-nav-top">'
-        '<a href="." class="back-tag">← ALL HYMNS</a>'
+        '<a href="." class="back-tag">← HOME</a>'
         '<span class="song-num">QR</span>'
         "</div>\n"
         '<div class="qr-wrap">\n'
-        f"{img}\n"
-        f"<p>Points to <code>{escape(url)}</code></p>\n"
+        '<div id="qr"></div>\n'
+        '<p>Points to <code id="qr-url"></code></p>\n'
+        "</div>\n"
+        '<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>\n'
+        "<script>(function(){"
+        "var url=new URL('./',document.baseURI).href;"
+        "document.getElementById('qr-url').textContent=url;"
+        "var box=document.getElementById('qr');"
+        "if(typeof QRCode==='undefined'){box.textContent='Could not load the QR maker. Check your connection and reload.';return;}"
+        "new QRCode(box,{text:url,width:512,height:512,correctLevel:QRCode.CorrectLevel.M});"
+        "})();</script>"
+    )
+    return page("QR — Grace House", body, key)
+
+
+def render_home(key: str) -> str:
+    """Front page: brand, swappable quote, a button per section."""
+    quote = parse_quote()
+    quote_html = ""
+    if quote:
+        text, cite = quote
+        cite_html = f"<cite>— {escape(cite)}</cite>" if cite else ""
+        quote_html = f'<blockquote class="quote"><p>{escape(text)}</p>{cite_html}</blockquote>\n'
+    items = []
+    for slug, title, sub in SECTIONS:
+        href = "zine" if slug == "zine" else f"{slug}/"
+        if section_ready(slug):
+            cls, tail = "sec", '<span class="sec-arrow" aria-hidden="true">→</span>'
+        else:
+            cls, tail = "sec soon", '<span class="soon-tag">Soon</span>'
+        items.append(
+            f'<li><a class="{cls}" href="{href}">'
+            f'<span><span class="sec-name">{escape(title)}</span>'
+            f'<span class="sec-sub">{escape(sub)}</span></span>'
+            f"{tail}</a></li>"
+        )
+    body = (
+        f"{BRAND_LOGO}\n"
+        f"{quote_html}"
+        f'<ul class="sections">\n' + "\n".join(items) + "\n</ul>"
+    )
+    return page("Grace House", body, key)
+
+
+def render_coming_soon(slug: str, key: str) -> str:
+    """Placeholder for a section that isn't built yet."""
+    title = section_title(slug)
+    body = (
+        '<div class="hymn-nav-top">'
+        '<a href="." class="back-tag">← HOME</a>'
+        "</div>\n"
+        f"{BRAND_LOGO}\n"
+        f'<div class="title-tag"><h1>{escape(title.upper())}</h1></div>\n'
+        '<div class="soon-box">'
+        '<h2 class="soon-big">Coming soon</h2>'
+        "<p>This page is still being put together.<br>Check back soon.</p>"
+        '<a class="sec" href="."><span class="sec-name">← Back home</span></a>'
         "</div>"
     )
-    return page("QR — Grace House Hymnal", body, key)
+    return page(f"{title} — Grace House", body, key)
 
 
 def render_blank() -> str:
@@ -1508,6 +1760,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
 
         inner = path[len(prefix):]
+        # Treat /hymnal and /hymnal/ the same (but keep "/" as the home page).
+        if len(inner) > 1:
+            inner = inner.rstrip("/") or "/"
 
         if inner == "/style.css":
             self._send(CSS.encode("utf-8"), "text/css; charset=utf-8")
@@ -1519,21 +1774,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self._send(b"QR not found", "text/plain; charset=utf-8", 404)
             return
         if inner == "/qr":
-            port = self.server.server_address[1]
-            url = f"http://localhost:{port}{prefix}/"
-            self._send(
-                render_qr_page(url, QR_PATH.exists(), key).encode("utf-8"),
-                "text/html; charset=utf-8",
-            )
+            self._send(render_qr_page(key).encode("utf-8"), "text/html; charset=utf-8")
             return
         if inner == "/":
+            self._send(render_home(key).encode("utf-8"), "text/html; charset=utf-8")
+            return
+        if inner == "/hymnal":
             hymns = load_hymns()
             self._send(
                 render_toc(hymns, key).encode("utf-8"),
                 "text/html; charset=utf-8",
             )
             return
-        if inner == "/musician" or inner == "/musician/":
+        if inner == "/musician":
             hymns = load_hymns()
             self._send(
                 render_toc(hymns, key, musician=True).encode("utf-8"),
@@ -1543,7 +1796,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if inner == "/zine":
             zine = parse_zine()
             if zine is None:
-                self._blank()
+                self._send(render_coming_soon("zine", key).encode("utf-8"),
+                           "text/html; charset=utf-8")
                 return
             title, sections = zine
             self._send(
@@ -1572,6 +1826,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 "text/html; charset=utf-8",
             )
             return
+        # Front-page sections that don't have a real page yet.
+        slug = inner.lstrip("/")
+        if any(slug == s for s, _, _ in SECTIONS) and not section_ready(slug):
+            self._send(render_coming_soon(slug, key).encode("utf-8"),
+                       "text/html; charset=utf-8")
+            return
         self._blank()
 
 
@@ -1597,14 +1857,15 @@ def main():
     bar = "─" * 62
     print()
     print(bar)
-    print("  Grace House Hymnal is running")
+    print("  Grace House is running")
     print(bar)
-    print(f"  Hymnal            :  http://localhost:{port}/{key}/")
+    print(f"  Front page        :  http://localhost:{port}/{key}/")
+    print(f"  Hymnal            :  http://localhost:{port}/{key}/hymnal/")
     print(f"  Musicians mirror  :  http://localhost:{port}/{key}/musician/")
     print(f"  QR code viewer    :  http://localhost:{port}/{key}/qr")
     print()
     print(f"  Access key        :  {key}")
-    print(f"  (edit access-key.txt to change; then regenerate QR)")
+    print(f"  (edit access-key.txt to change; the QR page updates itself)")
     print()
     print(f"  Phones reach this via your Tailscale Funnel URL.")
     print(f"  Make sure Tailscale + Funnel are running.")
