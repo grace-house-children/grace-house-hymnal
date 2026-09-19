@@ -8,8 +8,11 @@ made in the visitor's browser, so the static build on GitHub Pages still
 gives a fresh sheet every time, with nothing to rebuild.
 
     ┌──────────────────────────────────────────┐
-    │ GRACE HOUSE KIDS          LOOK IT UP     │
-    │ ACTIVITY SHEET            (coded verse)  │
+    │ GRACE HOUSE KIDS  [ACTIVITY SHEET]       │
+    ├──────────────────────────────────────────┤
+    │ LOOK IT UP  directions                   │
+    │ (coded verse)              KEY (symbols) │
+    │ ________________________________________ │
     │ ________________________________________ │
     │ ________________________________________ │
     ├────────────────────┬─────────────────────┤
@@ -122,18 +125,12 @@ main { max-width: calc(8.5in + 50px); }
   paint-order: normal !important;
 }
 
-/* Header: title on the left, Look it up on the right */
+/* Title row: GRACE HOUSE KIDS with the Activity Sheet chip beside it */
 .sh-head {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  column-gap: 0.3in;
-  align-items: stretch;
-}
-.sh-title {
   display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: flex-start;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.08in 0.22in;
 }
 .sh-brand {
   display: flex;
@@ -164,7 +161,6 @@ main { max-width: calc(8.5in + 50px); }
   white-space: nowrap;
 }
 .sh-kind {
-  margin-top: 0.1in;
   padding: 2px 10px 4px;
   background: #0a0a0a;
   color: #ffffff;
@@ -177,12 +173,6 @@ main { max-width: calc(8.5in + 50px); }
   transform: rotate(-1.5deg);
 }
 
-/* Two lines to copy the verse onto */
-.sh-lines span {
-  display: block;
-  height: 0.36in;
-  border-bottom: 1.5px solid #0a0a0a;
-}
 
 /* The four activity boxes */
 .sh-grid {
@@ -217,18 +207,35 @@ main { max-width: calc(8.5in + 50px); }
 }
 .act-body { position: relative; flex: 1; min-height: 0; }
 
-/* Look it up: label and directions side by side, then the coded
-   reference with a blank under each symbol, then the key. */
+/* Look it up, full width: label and directions, then the coded
+   reference with the key beside it, then lines to copy the verse onto.
+   A long reference pushes the key down to its own row. */
 .act-verse {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
-  column-gap: 0.12in;
-  row-gap: 0.09in;
+  column-gap: 0.14in;
+  row-gap: 0.1in;
 }
 .act-verse .act-label { margin: 0; }
-.act-verse .act-body { grid-column: 1 / -1; flex: none; }
-.act-note { margin: 0; font-size: 8pt; line-height: 1.3; }
+.act-verse .act-body {
+  grid-column: 1 / -1;
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.1in 0.3in;
+}
+.act-note { margin: 0; font-size: 9pt; line-height: 1.3; }
+
+/* Lines to copy the verse onto, spaced like wide-ruled notebook paper */
+.sh-lines { grid-column: 1 / -1; margin-top: -0.06in; }
+.sh-lines span {
+  display: block;
+  height: 0.34in;
+  border-bottom: 1.5px solid #0a0a0a;
+}
 
 /* Code symbols: drawn in the text color, a few of them filled in */
 .cs {
@@ -279,9 +286,6 @@ main { max-width: calc(8.5in + 50px); }
   flex-wrap: wrap;
   align-items: center;
   gap: 0.03in;
-  margin-top: 0.08in;
-  padding-top: 0.07in;
-  border-top: 1.5px dashed #b5b0a6;
 }
 .code-key-label {
   margin-right: 0.05in;
@@ -679,9 +683,14 @@ SHEET_WHEEL = (
     "</svg>"
 )
 
-def _act(name: str, title: str, note: str = "") -> str:
+# Three lines to copy the verse onto
+LINES = '<div class="sh-lines" aria-hidden="true"><span></span><span></span><span></span></div>'
+
+
+def _act(name: str, title: str, note: str = "", after: str = "") -> str:
     """One shuffleable box: a label chip, optional directions beside it,
-    and an empty body for its maker."""
+    an empty body for its maker, and optional fixed markup after that
+    (it stays put when the box shuffles)."""
     note_html = f'<p class="act-note">{escape(note)}</p>' if note else ""
     return (
         f'<section class="act act-{name}" data-act="{name}" role="button" tabindex="0" '
@@ -689,6 +698,7 @@ def _act(name: str, title: str, note: str = "") -> str:
         f'<h2 class="act-label">{escape(title)}</h2>'
         f"{note_html}"
         '<div class="act-body"></div>'
+        f"{after}"
         "</section>"
     )
 
@@ -714,17 +724,14 @@ def render_kids_sheet(verses: list[str], events) -> str:
         '<div id="sheet-wrap" class="sheet-wrap">\n'
         f'<div id="sheet" class="sheet" data-verses="{verse_data}" data-events="{event_data}">\n'
         '<header class="sh-head">'
-        '<div class="sh-title">'
         '<div class="sh-brand">'
         '<span class="sh-sr">Grace House Kids</span>'
         f'<span aria-hidden="true">Grace H</span>{SHEET_WHEEL}'
         '<span aria-hidden="true">use Kids</span>'
         "</div>"
         '<div class="sh-kind">Activity Sheet</div>'
-        "</div>"
-        f'{_act("verse", "Look it up", "Crack the code. Find it in a Bible. Write it below.")}'
         "</header>\n"
-        '<div class="sh-lines" aria-hidden="true"><span></span><span></span></div>\n'
+        f'{_act("verse", "Look it up", "Crack the code. Find it in a Bible. Write it on the lines.", LINES)}\n'
         '<div class="sh-grid">\n'
         f'{_act("picture", "Hidden picture")}\n'
         f'{_act("words", "Word search")}\n'
