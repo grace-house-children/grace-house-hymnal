@@ -27,9 +27,9 @@ Output:
     dist/{key}/musician/hymn/1/index.html
     dist/{key}/zine/index.html           <- the zine (or "coming soon")
     dist/{key}/events/index.html         <- calendar + events (or "coming soon")
+    dist/{key}/kids/index.html           <- printable kids activity sheet
     dist/{key}/who-we-are/index.html     <- "coming soon" pages for sections
     dist/{key}/tracts/index.html            that aren't built yet
-    dist/{key}/kids/index.html
     dist/{key}/qr/index.html             <- QR code for the front page
 
 The URLs work exactly like your local server. Anyone without the key
@@ -191,6 +191,11 @@ def build() -> None:
         on_github = os.environ.get("GITHUB_ACTIONS") == "true"
         for msg in problems:
             print(f"::warning::events.txt: {msg}" if on_github else f"  ! events.txt: {msg}")
+
+    # Kids activity sheet — /{key}/kids/index.html. Every puzzle is made
+    # in the visitor's browser, so this page never needs a rebuild either.
+    if server.section_ready("kids"):
+        page_out(f"{key}/kids/index.html", server.render_kids_page(key), key, 1)
 
     # "Coming soon" for every front-page section without a real page yet.
     print("Sections:")
