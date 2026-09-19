@@ -1,0 +1,25 @@
+# Grace House events.
+#
+# One event per block, with a blank line between events.
+# First line: the date. Every line after it: the details.
+# The first detail line shows up bold, so make it the event's name.
+# Lines starting with "- " become bullet points.
+#
+# Dates need the year. Any of these work:
+#   September 27 2026
+#   Sun Sep 27th, 2026
+#   9/27/2026
+#   2026-09-27
+# You don't have to type the weekday; the page works it out.
+# Put the time on its own line under the date, not on the date line.
+#
+# Past events hide themselves, so you can leave them here or
+# delete them whenever. Lines starting with # (like these) are ignored.
+#
+# Example (remove the # marks to use it):
+#
+# September 27 2026
+# Fall potluck
+# After service, around noon.
+# - Bring a dish to share
+# - Folding chairs if you have them
