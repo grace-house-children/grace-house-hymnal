@@ -1,32 +1,43 @@
 #!/usr/bin/env python3
-"""Grace House Hymnal — static site builder.
+"""Grace House — static site builder.
 
-Reads the same files server.py reads (hymns/, zine.txt, access-key.txt,
-qr-code.png) and writes a complete static site to ./dist that can be
-uploaded to any web host — GitHub Pages, Cloudflare Pages, Neocities,
-a USB stick, whatever.
+Reads the same files server.py reads (hymns/, zine.txt, quote.txt) and
+writes a complete static site to ./dist that can be uploaded to any web
+host — GitHub Pages, Cloudflare Pages, Neocities, a USB stick, whatever.
 
 Usage:
     python3 build.py
 
-Output:
-    dist/                              <- upload this whole folder
-    dist/index.html                    <- friendly landing page (nothing here)
-    dist/{key}/index.html              <- the hymnal TOC
-    dist/{key}/style.css
-    dist/{key}/qr-code.png             <- if you have one
-    dist/{key}/hymn/1/index.html       <- each hymn as its own page
-    dist/{key}/hymn/2/index.html
-    dist/{key}/zine/index.html         <- if zine.txt exists
-    dist/{key}/print/index.html        <- musician's booklet
-    dist/{key}/qr/index.html           <- the QR-code viewer page
+The access key:
+    On GitHub, the key comes from the HYMNAL_KEY repository secret
+    (Settings → Secrets and variables → Actions). On your own computer
+    it comes from access-key.txt, which .gitignore keeps out of the repo.
+    If GitHub has neither, the build stops instead of inventing a random
+    key — the live site stays as it was.
 
-The URLs work exactly like your local server: /{key}/ for the hymnal,
-/{key}/hymn/5 for hymn #5, and so on. Anyone without the key just
-sees the friendly landing page.
+Output:
+    dist/                                <- upload this whole folder
+    dist/index.html                      <- friendly landing page (nothing here)
+    dist/{key}/index.html                <- front page: quote + section buttons
+    dist/{key}/style.css
+    dist/{key}/hymnal/index.html         <- the hymnal TOC
+    dist/{key}/hymn/1/index.html         <- each hymn as its own page
+    dist/{key}/musician/index.html       <- musician mirror TOC
+    dist/{key}/musician/hymn/1/index.html
+    dist/{key}/zine/index.html           <- the zine (or "coming soon")
+    dist/{key}/events/index.html         <- "coming soon" pages for sections
+    dist/{key}/who-we-are/index.html        that aren't built yet
+    dist/{key}/tracts/index.html
+    dist/{key}/kids/index.html
+    dist/{key}/qr/index.html             <- QR code for the front page
+
+The URLs work exactly like your local server. Anyone without the key
+just sees the friendly landing page.
 """
 from __future__ import annotations
 
+import os
+import re
 import shutil
 import sys
 from pathlib import Path
@@ -38,29 +49,10 @@ HERE = Path(__file__).resolve().parent
 DIST = HERE / "dist"
 
 
-def write(rel_path: str, content: str | bytes, key: str) -> None:
-    """Write a file into dist/. Text is rewritten so links work on a static host.
-
-    On a static host, we don't have URL rewriting, so:
-      - /{key}/hymn/5  becomes  /{key}/hymn/5/index.html
-      - /{key}/zine    becomes  /{key}/zine/index.html
-      - /{key}/print   becomes  /{key}/print/index.html
-      - /{key}/qr      becomes  /{key}/qr/index.html
-    We keep the pretty URLs by putting each page inside its own folder
-    and letting the server serve index.html.
-    """
+def write(rel_path: str, content: str | bytes) -> None:
     out = DIST / rel_path
     out.parent.mkdir(parents=True, exist_ok=True)
     if isinstance(content, str):
-        # The rendered HTML uses <base href="/{key}/"> so links like
-        # "hymn/5" resolve to "/{key}/hymn/5". On a static host that
-        # needs to be "/{key}/hymn/5/" (or explicitly /index.html) so
-        # the server serves the right file. Adding the trailing slash
-        # is the least invasive fix.
-        content = (
-            content
-            .replace(f'href="hymn/', 'href="hymn/')  # unchanged, sanity anchor
-        )
         out.write_text(content, encoding="utf-8")
     else:
         out.write_bytes(content)
@@ -69,10 +61,9 @@ def write(rel_path: str, content: str | bytes, key: str) -> None:
 def rewrite_hymn_links(html: str) -> str:
     """Make internal links work under a static host (add trailing slashes
     so /{key}/hymn/5 serves /{key}/hymn/5/index.html)."""
-    import re
     # hymn/<num> and musician/hymn/<num> -> add trailing slash
     html = re.sub(r'href="(musician/)?hymn/(\d+)"', r'href="\1hymn/\2/"', html)
-    # zine, qr -> trailing slash (musician/ and musician/hymn are already handled)
+    # zine, qr -> trailing slash (everything else is already written with one)
     html = html.replace('href="zine"', 'href="zine/"')
     html = html.replace('href="qr"', 'href="qr/"')
     return html
@@ -84,15 +75,19 @@ def rewrite_base(html: str, key: str, depth: int) -> str:
     a project subpath (GitHub Pages: /repo-name/).
 
     depth = number of folder levels the page sits below /KEY/.
-      TOC              /KEY/index.html                   depth 0 -> "./"
+      front page       /KEY/index.html                   depth 0 -> "./"
+      hymnal TOC       /KEY/hymnal/index.html            depth 1 -> "../"
       hymn 5           /KEY/hymn/5/index.html            depth 2 -> "../../"
       musician TOC     /KEY/musician/index.html          depth 1 -> "../"
       musician hymn 5  /KEY/musician/hymn/5/index.html   depth 3 -> "../../../"
-      zine             /KEY/zine/index.html              depth 1 -> "../"
-      qr               /KEY/qr/index.html                depth 1 -> "../"
+      zine, qr, and each section page                    depth 1 -> "../"
     """
     relative = "./" if depth == 0 else "../" * depth
     return html.replace(f'<base href="/{key}/">', f'<base href="{relative}">')
+
+
+def page_out(rel_path: str, html: str, key: str, depth: int) -> None:
+    write(rel_path, rewrite_base(rewrite_hymn_links(html), key, depth))
 
 
 def landing_page() -> str:
@@ -113,87 +108,93 @@ def landing_page() -> str:
     )
 
 
+def get_key() -> str:
+    on_github = os.environ.get("GITHUB_ACTIONS") == "true"
+    has_secret = bool(os.environ.get("HYMNAL_KEY", "").strip())
+    if on_github and not has_secret:
+        if not server.KEY_PATH.exists():
+            raise RuntimeError(
+                "No access key. Add a repository secret named HYMNAL_KEY "
+                "(Settings → Secrets and variables → Actions)."
+            )
+        # Still works, but the key is sitting in the repo.
+        print("::warning::Using access-key.txt from the repo. Add the HYMNAL_KEY "
+              "secret and delete access-key.txt from GitHub.")
+    elif on_github and server.KEY_PATH.exists():
+        print("::warning::access-key.txt is still in the repo. The HYMNAL_KEY "
+              "secret is being used instead; delete access-key.txt from GitHub.")
+    return server.load_key()
+
+
 def build() -> None:
+    key = get_key()
+
     # Nuke and repave — fully deterministic output.
     if DIST.exists():
         shutil.rmtree(DIST)
     DIST.mkdir()
 
-    key = server.load_key()
-    key_dir = f"{key}"
     hymns = server.load_hymns()
+    # Never print the key itself: GitHub build logs are public on a public repo.
+    print(f"Building site ({len(hymns)} hymns).")
 
-    print(f"Building site with access key: {key}")
-    print(f"Found {len(hymns)} hymns.")
-
-    # Root landing page (unlisted URL protection: without the key, you
-    # get this instead of the hymnal).
-    write("index.html", landing_page(), key)
+    # Root landing page (without the key, you get this instead of the site).
+    write("index.html", landing_page())
 
     # Stylesheet — under the key prefix so <base href="/{key}/"> finds it.
-    write(f"{key_dir}/style.css", server.CSS, key)
+    write(f"{key}/style.css", server.CSS)
 
-    # QR code image (if present) — passed through as-is.
-    if server.QR_PATH.exists():
-        write(f"{key_dir}/qr-code.png", server.QR_PATH.read_bytes(), key)
+    # Front page — /{key}/index.html
+    page_out(f"{key}/index.html", server.render_home(key), key, 0)
 
-    # The public hymnal TOC — /{key}/index.html
-    toc_html = rewrite_hymn_links(server.render_toc(hymns, key))
-    write(f"{key_dir}/index.html", rewrite_base(toc_html, key, 0), key)
+    # Hymnal TOC — /{key}/hymnal/index.html
+    page_out(f"{key}/hymnal/index.html", server.render_toc(hymns, key), key, 1)
 
     # Each public hymn page — /{key}/hymn/N/index.html
     for idx, (number, _title, filepath) in enumerate(hymns):
         title, verses, _meta = server.parse_hymn(filepath)
         prev_n = hymns[idx - 1][0] if idx > 0 else None
         next_n = hymns[idx + 1][0] if idx < len(hymns) - 1 else None
-        html = rewrite_hymn_links(server.render_hymn_page(number, title, verses, prev_n, next_n, key))
-        write(f"{key_dir}/hymn/{number}/index.html", rewrite_base(html, key, 2), key)
+        html = server.render_hymn_page(number, title, verses, prev_n, next_n, key)
+        page_out(f"{key}/hymn/{number}/index.html", html, key, 2)
         print(f"  #{number:>3}  {title}")
 
-    # The musician mirror — same hymns, but the [X] chord markers are
-    # rendered inline as pink brackets instead of stripped out, plus the
-    # scroll / transpose / text size / dark mode control bar. meta carries
-    # each song's [Speed:X] and [Key:X] into that control bar.
+    # The musician mirror — chords inline, plus the scroll / transpose /
+    # text size / dark mode control bar. meta carries each song's
+    # [Speed:X] and [Key:X] into that control bar.
     print("Musicians mirror:")
-    musician_toc = rewrite_hymn_links(server.render_toc(hymns, key, musician=True))
-    write(f"{key_dir}/musician/index.html", rewrite_base(musician_toc, key, 1), key)
+    page_out(f"{key}/musician/index.html", server.render_toc(hymns, key, musician=True), key, 1)
     for idx, (number, _title, filepath) in enumerate(hymns):
         title, verses, meta = server.parse_hymn(filepath)
         prev_n = hymns[idx - 1][0] if idx > 0 else None
         next_n = hymns[idx + 1][0] if idx < len(hymns) - 1 else None
-        html = rewrite_hymn_links(
-            server.render_hymn_page(number, title, verses, prev_n, next_n, key,
-                                    musician=True, meta=meta)
-        )
-        write(f"{key_dir}/musician/hymn/{number}/index.html", rewrite_base(html, key, 3), key)
+        html = server.render_hymn_page(number, title, verses, prev_n, next_n, key,
+                                       musician=True, meta=meta)
+        page_out(f"{key}/musician/hymn/{number}/index.html", html, key, 3)
         speed = meta.get("speed")
         print(f"  #{number:>3}  {title}" + (f"  (speed {speed})" if speed else ""))
 
-    # Zine — /{key}/zine/index.html (only if zine.txt exists)
+    # Zine — /{key}/zine/index.html
     zine = server.parse_zine()
     if zine is not None:
         title, sections = zine
-        html = rewrite_hymn_links(server.render_zine_page(title, sections, key))
-        write(f"{key_dir}/zine/index.html", rewrite_base(html, key, 1), key)
+        page_out(f"{key}/zine/index.html", server.render_zine_page(title, sections, key), key, 1)
 
-    # QR page — /{key}/qr/index.html.
-    # The URL baked into the QR viewer's caption needs to point at the
-    # PUBLIC site now, not localhost. We read it from a small file if
-    # present; otherwise we fall back to a placeholder the user can
-    # regenerate the PNG for.
-    public_url_file = HERE / "public-url.txt"
-    if public_url_file.exists():
-        public_url = public_url_file.read_text(encoding="utf-8").strip().rstrip("/")
-        display_url = f"{public_url}/{key}/"
-    else:
-        display_url = f"https://your-site.example/{key}/"
-    qr_html = rewrite_hymn_links(server.render_qr_page(display_url, server.QR_PATH.exists(), key))
-    write(f"{key_dir}/qr/index.html", rewrite_base(qr_html, key, 1), key)
+    # "Coming soon" for every front-page section without a real page yet.
+    print("Sections:")
+    for slug, title, _sub in server.SECTIONS:
+        ready = server.section_ready(slug)
+        if not ready:
+            page_out(f"{key}/{slug}/index.html", server.render_coming_soon(slug, key), key, 1)
+        print(f"  {title:<16} {'live' if ready else 'coming soon'}")
+
+    # QR page — /{key}/qr/index.html (draws the code from its own address).
+    page_out(f"{key}/qr/index.html", server.render_qr_page(key), key, 1)
 
     print()
-    print(f"Built {sum(1 for _ in DIST.rglob('*') if _.is_file())} files into ./dist")
-    print(f"Preview locally:  cd dist && python3 -m http.server 8000")
-    print(f"Then open:        http://localhost:8000/{key}/")
+    print(f"Built {sum(1 for p in DIST.rglob('*') if p.is_file())} files into ./dist")
+    print("Preview locally:  cd dist && python3 -m http.server 8000")
+    print("Then open http://localhost:8000/ followed by your key and a slash.")
 
 
 if __name__ == "__main__":
