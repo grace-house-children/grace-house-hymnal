@@ -4,6 +4,10 @@
 # publishes ./dist to GitHub Pages. First run takes ~1 minute;
 # after that, edits usually go live in ~30 seconds.
 #
+# The access key comes from the HYMNAL_KEY repository secret
+# (Settings → Secrets and variables → Actions). It's never stored in
+# the repo and never printed in the build log.
+#
 # You should never need to touch this file. If you do, GitHub will
 # not let you break anything permanent — old deploys stay live until
 # a new one succeeds.
@@ -34,6 +38,8 @@ jobs:
           python-version: '3.12'
       - name: Build site
         run: python build.py
+        env:
+          HYMNAL_KEY: ${{ secrets.HYMNAL_KEY }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: ./dist
